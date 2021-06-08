@@ -1,0 +1,76 @@
+
+
+v a
+
+f <$>> val1 <*>> val2 <*>> val3 >>> res
+
+dec1: A -> B
+dec2: K -> L
+dec3: M -> ¬B
+
+d1p = (read A) >>= \a -> if a then (write B true) else return ()
+
+d3p = (read M) >>= \a -> if a then (write B false) else return ()
+
+class HasContent p k where
+  getK :: p -> m k
+
+class HasContent (v a) a => HasValue m (v a) where
+  getVal :: v a -> m a
+  getVal = getK
+instance HasValue (v a)
+
+class HasContent (v a) (Set (m ())) => HasProps m (v a) where
+  getProps :: v a -> m (Set (m ()))
+  getProps = getK
+instance HasProps (v a)
+
+
+notify :: (HasValue m (v a) a, HasProps m (v a)) =>
+  p -> m ()
+notify p = do
+  val <- getVal p
+  props <- getVal p
+
+
+
+concat :: [a] -> [a] -> [a]
+concat [] y = y
+concat (x : xs) y = x : (concat xs y)
+
+concat :: v [a] -> v [a] -> v [a] -> m ()
+concat [] y r = eq r y
+concat (x : xs) y r = do
+  k <- new
+  write r (x : k)
+  concat xs y k
+
+(\r -> [1,2,3,4,r 5, 6,7]) (+1)
+(\r -> [1,2,3,4,r 5, 6,7]) (\x -> x x) (+1) ~> (\r -> [1,2,3,4,r 6, 6,7])
+
+thresholdTup : (a,b,c) -> Maybe c
+
+(x + y) * z
+((+ x) y)
+
+class Subvals f where
+  subvals :: f -> HList
+
+data List a = mpty | cons (List a)
+
+instance Subvals (List a) where
+  subvals mpty = [mpty]
+  subvals (x : xs) = [(:),x,xs]
+
+(A -> B) -> A -> (A -> B, A)
+
+Needed Features:
+  variable merging
+  pointers to subvalues
+  implication graph in variables
+  clause learning as a propagator on implication graph back into the state we would have backtracked to
+
+
+
+
+  --
