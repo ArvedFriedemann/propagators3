@@ -22,6 +22,8 @@ description:         Please see the README on GitHub at <https://github.com/gith
 dependencies:
 - base >= 4.7 && < 5
 - monad-var
+- lattices
+- containers
 
 default-extensions:
 - PackageImports
@@ -30,6 +32,9 @@ default-extensions:
 - ScopedTypeVariables
 - TypeApplications
 - MultiParamTypeClasses
+- FlexibleInstances
+- FlexibleContexts
+- ConstraintKinds
 
 library:
   source-dirs: src
