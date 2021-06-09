@@ -24,6 +24,7 @@ dependencies:
 - monad-var
 - lattices
 - containers
+- mtl
 
 default-extensions:
 - PackageImports

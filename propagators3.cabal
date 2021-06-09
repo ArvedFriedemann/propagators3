@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.31.2.
+-- This file has been generated from package.yaml by hpack version 0.33.0.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 5a0e5c96d228008255dc4674151561c052283d5a14707f0506af7cda77b1de10
+-- hash: 0cada729f99e2f4edb946be42d410cb01107fc49a6c0bbd3795410b82e8b3306
 
 name:           propagators3
 version:        0.1.0.0
@@ -38,6 +38,7 @@ library
     , containers
     , lattices
     , monad-var
+    , mtl
   default-language: Haskell2010
 
 executable propagators3-exe
@@ -53,6 +54,7 @@ executable propagators3-exe
     , containers
     , lattices
     , monad-var
+    , mtl
     , propagators3
   default-language: Haskell2010
 
@@ -70,5 +72,6 @@ test-suite propagators3-test
     , containers
     , lattices
     , monad-var
+    , mtl
     , propagators3
   default-language: Haskell2010
