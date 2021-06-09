@@ -21,6 +21,15 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
+- monad-var
+
+default-extensions:
+- PackageImports
+- ViewPatterns
+- RankNTypes
+- ScopedTypeVariables
+- TypeApplications
+- MultiParamTypeClasses
 
 library:
   source-dirs: src

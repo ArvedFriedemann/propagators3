@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: aa61eba3f4bb6631e2e9d8ab96b08534dd934ce825618704579453ff66051cf4
+-- hash: b94618f4ff088f74ffc883ea5f040a44a22ee41d40203b02a07cb4f6357902ba
 
 name:           propagators3
 version:        0.1.0.0
@@ -27,13 +27,15 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
+      Propagators
   other-modules:
       Paths_propagators3
   hs-source-dirs:
       src
+  default-extensions: PackageImports ViewPatterns RankNTypes ScopedTypeVariables TypeApplications MultiParamTypeClasses
   build-depends:
       base >=4.7 && <5
+    , monad-var
   default-language: Haskell2010
 
 executable propagators3-exe
@@ -42,9 +44,11 @@ executable propagators3-exe
       Paths_propagators3
   hs-source-dirs:
       app
+  default-extensions: PackageImports ViewPatterns RankNTypes ScopedTypeVariables TypeApplications MultiParamTypeClasses
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , monad-var
     , propagators3
   default-language: Haskell2010
 
@@ -55,8 +59,10 @@ test-suite propagators3-test
       Paths_propagators3
   hs-source-dirs:
       test
+  default-extensions: PackageImports ViewPatterns RankNTypes ScopedTypeVariables TypeApplications MultiParamTypeClasses
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
+    , monad-var
     , propagators3
   default-language: Haskell2010
