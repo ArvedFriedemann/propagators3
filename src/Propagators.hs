@@ -1,7 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module Propagators where
 
-import Prelude hiding (read)
+import Prelude hiding (read, pred)
 import "monad-var" MonadVar.Classes (MonadMutate, MonadWrite, MonadRead)
 import qualified "monad-var" MonadVar.Classes as MV
 import "lattices" Algebra.Lattice
@@ -24,10 +24,10 @@ class (HasValIn p a) => HasValue p a where
   setVal :: p -> a -> p
   setVal = setValue
 
-class (HasValIn p (PCollection m v a)) => HasProps p v a m where
-  getProps :: p -> PCollection m v a
+class (HasValIn k (PCollection m v k a)) => HasProps m v k a where
+  getProps :: k -> PCollection m v k a
   getProps = getValue
-  setProps :: p -> PCollection m v a -> p
+  setProps :: k -> PCollection m v k a -> k
   setProps = setValue
 
 
@@ -36,11 +36,11 @@ read :: (MonadRead m v, HasValue k a) => v k -> (a -> m b) -> m b
 read adr m = {-TODO: register listener-} (getVal <$> (MV.read adr)) >>= m
 
 write :: forall m v k a.
-  (MonadFork m, MonadMutate m v, HasValue k a, HasProps k v a m, Eq a, Lattice a) =>
+  (MonadFork m, MonadMutate m v, HasValue k a, HasProps m v k a, Eq a, Lattice a) =>
   v k -> a -> m ()
 write adr val = MV.mutate adr update >>= mapM_ (forkExec . crcont)
   where
-    update :: k -> (k,PCollection m v a)
+    update :: k -> (k,PCollection m v k a)
     update v = (setProps (setVal v mt) nosuccprops, succprops)
       where
         mt :: a
@@ -50,21 +50,27 @@ write adr val = MV.mutate adr update >>= mapM_ (forkExec . crcont)
           then (getProps v,[])
           else notify mt (getProps v)
 
+addPropagator :: (MonadMutate m v, HasValue k a, HasProps m v k a ) =>
+  v k -> (a -> Bool) -> m () -> m ()
+addPropagator p pred cont = MV.mutate_ p (\v -> setProps v (ContRec p pred cont : getProps v) )
+
 --second collection is the succeeding propagators, first is the failed one that needs to be written back
-notify :: a -> PCollection m v a -> (PCollection m v a, PCollection m v a)
+notify :: a -> PCollection m v k a -> (PCollection m v k a, PCollection m v k a)
 notify val props = partition (not . ($ val) . crpred) props
 
 
-data ContRec m v a = ContRec {
-  crptr :: v a, --might not be needed
+data ContRec m v k a = ContRec {
+  crptr :: v k, --might not be needed
   crpred :: (a -> Bool),
   crcont :: m ()
 }
 
-type PCollection m v a = [ContRec m v a]
+type PCollection m v k a = [ContRec m v k a]
 
-iff :: (MonadRead m v, HasValue a a) =>
-  v a -> (a -> Bool) -> (a -> m ()) -> m ()
+--TODO: when splittin for constructors, we need pref as a -> Maybe b
+--This needs to go into a tree way...Conflict, Unassigned and Just ... to completely cover constructors
+iff :: (MonadRead m v, HasValue k a) =>
+  v k -> (a -> Bool) -> (a -> m ()) -> m ()
 iff p pred m = read p $ \p' ->
   if pred p' then m p' else undefined --TODO: throwError (ContRec p pred (read p >>= m))
 
