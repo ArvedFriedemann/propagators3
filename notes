@@ -71,6 +71,33 @@ Needed Features:
   clause learning as a propagator on implication graph back into the state we would have backtracked to
 
 
+  -- failIfNotApplicable :: (s :<: t) => (s -> Bool) -> (t -> MaybeFails)
+  -- failIfNotApplicable (something in s) = run the pred, if fails then Fail
+  -- failIfNotApplicable (something not in s) = Impossible
+  -- failIfNotApplicable (not instantiated enough) = NotInstantiatedEnough
 
+  {-
+  type family ToTuple (x :: *) :: * where
+    ToTuple (a -> b) = (a, ToTuple b)
+    ToTuple x = x
+
+  data LiftedConstructor (cons :: k -> *) (args :: k) where
+    lc :: ToTuple args -> LiftedConstructor cons args
+  -}
+
+{-
+  instance Applicative Instantiated where
+    pure = Instance
+    (Instance f) <*> (Instance x) = Instance (f x)
+    Failed <*> _ = Failed
+    NoInstance <*> _ = NoInstance
+    (Instance _) <*> Failed = Failed
+    (Instance _) <*> NoInstance = NoInstance
+
+  instance Monad Instantiated where
+    (Instance v) >>= fkt = fkt v
+    Failed >>= _ = Failed
+    NoInstance >>= _ = NoInstance
+-}
 
   --
