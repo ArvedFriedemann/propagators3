@@ -9,6 +9,7 @@ import "containers" Data.Set (Set)
 import qualified "containers" Data.Set as S
 import "mtl" Control.Monad.Except
 import "base" Data.List
+import "monad-parallel" Control.Monad.Parallel
 
 
 type MonadVar m v = (MonadMutate m v, MonadWrite m v, MonadRead m v)
@@ -28,6 +29,7 @@ class (HasValIn p (PCollection m v a)) => HasProps p v a m where
   getProps = getValue
   setProps :: p -> PCollection m v a -> p
   setProps = setValue
+
 
 --read p >>= m ~> watch p (read p >>= m)
 read :: (MonadRead m v, HasValue k a) => v k -> (a -> m b) -> m b

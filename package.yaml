@@ -25,6 +25,7 @@ dependencies:
 - lattices
 - containers
 - mtl
+- monad-parallel
 
 default-extensions:
 - PackageImports
