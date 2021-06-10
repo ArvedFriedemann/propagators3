@@ -32,8 +32,8 @@ class (HasValIn k (PCollection m v k a)) => HasProps m v k a where
 
 
 --read p >>= m ~> watch p (read p >>= m)
-read :: (MonadRead m v, HasValue k a) => v k -> (a -> m b) -> m b
-read adr m = {-TODO: register listener-} (getVal <$> (MV.read adr)) >>= m
+read :: (MonadRead m v, HasValue k a) => v k -> m a
+read adr = (getVal <$> (MV.read adr))
 
 write :: forall m v k a.
   (MonadFork m, MonadMutate m v, HasValue k a, HasProps m v k a, Eq a, Lattice a) =>
@@ -69,10 +69,10 @@ type PCollection m v k a = [ContRec m v k a]
 
 --TODO: when splittin for constructors, we need pref as a -> Maybe b
 --This needs to go into a tree way...Conflict, Unassigned and Just ... to completely cover constructors
-iff :: (MonadRead m v, HasValue k a) =>
+iff :: (MonadMutate m v, HasValue k a, HasProps m v k a) =>
   v k -> (a -> Bool) -> (a -> m ()) -> m ()
-iff p pred m = read p $ \p' ->
-  if pred p' then m p' else undefined --TODO: throwError (ContRec p pred (read p >>= m))
+iff p pred m = read p >>= \p' ->
+  if pred p' then m p' else addPropagator p pred (read p >>= m)
 
 {-
 blah = do
