@@ -9,6 +9,7 @@ import "containers" Data.Set (Set)
 import qualified "containers" Data.Set as S
 --import "mtl" Control.Monad.Except
 import "base" Data.List
+import "base" Control.Monad
 import "monad-parallel" Control.Monad.Parallel (MonadFork, forkExec)
 
 
@@ -51,8 +52,12 @@ write adr val = MV.mutate adr update >>= mapM_ (forkExec . crcont)
           else notify mt (getProps v)
 
 addPropagator :: (MonadMutate m v, HasValue k a, HasProps m v k a ) =>
-  v k -> (a -> Bool) -> m () -> m ()
-addPropagator p pred cont = MV.mutate_ p (\v -> setProps v (ContRec p pred cont : getProps v) )
+  v k -> (a -> Bool) -> (a -> m ()) -> m ()
+addPropagator p pred cont =
+  join $ MV.mutate p $ \v ->
+      if pred (getVal v)
+      then (v, cont $ getVal v)
+      else (setProps v (ContRec p pred (read p >>= cont) : getProps v), return ())
 
 --second collection is the succeeding propagators, first is the failed one that needs to be written back
 notify :: a -> PCollection m v k a -> (PCollection m v k a, PCollection m v k a)
@@ -71,8 +76,7 @@ type PCollection m v k a = [ContRec m v k a]
 --This needs to go into a tree way...Conflict, Unassigned and Just ... to completely cover constructors
 iff :: (MonadMutate m v, HasValue k a, HasProps m v k a) =>
   v k -> (a -> Bool) -> (a -> m ()) -> m ()
-iff p pred m = read p >>= \p' ->
-  if pred p' then m p' else addPropagator p pred (read p >>= m)
+iff p pred m = addPropagator p pred m
 
 {-
 blah = do
