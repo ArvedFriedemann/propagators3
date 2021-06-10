@@ -1,6 +1,6 @@
 module Main where
 
-import "this" Propagators
+import "propagators3" Propagators
 
 main :: IO ()
 main = undefined
