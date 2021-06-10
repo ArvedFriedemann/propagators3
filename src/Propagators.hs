@@ -72,6 +72,28 @@ data ContRec m v k a = ContRec {
 
 type PCollection m v k a = [ContRec m v k a]
 
+--TODO: make monad instance from those
+data Instantiated a = Failed | NoInstance | Instance a
+  deriving (Show, Eq, Ord, Functor)
+
+instance Applicative Instantiated where
+  pure = Instance
+  (Instance f) <*> (Instance x) = Instance (f x)
+  Failed <*> _ = Failed
+  NoInstance <*> _ = NoInstance
+  (Instance _) <*> Failed = Failed
+  (Instance _) <*> NoInstance = NoInstance
+
+instance Monad Instantiated where
+  (Instance v) >>= fkt = fkt v
+  Failed >>= _ = Failed
+  NoInstance >>= _ = NoInstance
+
+-- failIfNotApplicable :: (s :<: t) => (s -> Bool) -> (t -> MaybeFails)
+-- failIfNotApplicable (something in s) = run the pred, if fails then Fail
+-- failIfNotApplicable (something not in s) = Impossible
+-- failIfNotApplicable (not instantiated enough) = NotInstantiatedEnough
+
 --TODO: when splittin for constructors, we need pref as a -> Maybe b
 --This needs to go into a tree way...Conflict, Unassigned and Just ... to completely cover constructors
 iff :: (MonadMutate m v, HasValue k a, HasProps m v k a) =>
@@ -79,6 +101,13 @@ iff :: (MonadMutate m v, HasValue k a, HasProps m v k a) =>
 iff p pred m = addPropagator p pred m
 
 {-
+empty :: List a -> Instantiated ()
+cons :: List a -> Instantiated (a, List a)
+
+Blah Double String
+blah :: Blah a b -> Instantiated (a,b)
+
+
 blah = do
   iff x prop1 $ do
     iff y prop2 $ do
