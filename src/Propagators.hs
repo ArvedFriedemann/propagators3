@@ -75,7 +75,6 @@ data ContRec m v k a = ContRec {
 
 type PCollection m v k a = [ContRec m v k a]
 
---TODO: make monad instance from those
 data Instantiated = Failed | NoInstance | Instance
   deriving (Show, Eq, Ord)
 
@@ -84,8 +83,6 @@ splitInstantiated lst f = (filter ((== Failed) . f) lst
                           ,filter ((== NoInstance) . f) lst
                           ,filter ((== Instance) . f) lst)
 
---TODO: when splittin for constructors, we need pref as a -> Maybe b
---This needs to go into a tree way...Conflict, Unassigned and Just ... to completely cover constructors
 iff :: (MonadMutate m v, HasValue k a, HasProps m v k a) =>
   v k -> (a -> Instantiated) -> (a -> m ()) -> m ()
 iff p pred m = addPropagator p pred m
