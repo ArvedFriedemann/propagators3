@@ -8,6 +8,7 @@ import "lattices" Algebra.Lattice
 import "containers" Data.Set (Set)
 import qualified "containers" Data.Set as S
 import "mtl" Control.Monad.Except
+import "base" Data.List
 
 
 type MonadVar m v = (MonadMutate m v, MonadWrite m v, MonadRead m v)
@@ -22,10 +23,10 @@ class (HasValIn p a) => HasValue p a where
   setVal :: p -> a -> p
   setVal = setValue
 
-class (HasValIn p (Set (m ()))) => HasProps p m where
-  getProps :: p -> Set (m ())
+class (HasValIn p (PCollection m v a)) => HasProps p v a m where
+  getProps :: p -> PCollection m v a
   getProps = getValue
-  setProps :: p -> Set (m ()) -> p
+  setProps :: p -> PCollection m v a -> p
   setProps = setValue
 
 --read p >>= m ~> watch p (read p >>= m)
@@ -33,32 +34,37 @@ read :: (MonadRead m v, HasValue k a) => v k -> (a -> m b) -> m b
 read adr m = {-TODO: register listener-} (getVal <$> (MV.read adr)) >>= m
 
 write :: forall m v k a.
-  (MonadMutate m v, HasValue k a, HasProps k m, Eq a, Lattice a, MonadError (m ()) m) =>
+  (MonadMutate m v, HasValue k a, HasProps k v a m, Eq a, Lattice a, MonadError (m ()) m) =>
   v k -> a -> m ()
 -- TODO: notify returns a set of propagators that haven't fired. Use them.
-write adr val = MV.mutate adr update >>= notify >>= undefined
+write adr val = MV.mutate adr update >>= undefined --TODO: perform the propagators concurrently
   where
-    update :: k -> (k,Set (m ()))
-    update v = (setVal v mt, if getVal v == mt then S.empty else getProps v)
-      where mt = getVal v /\ val
+    update :: k -> (k,PCollection m v a)
+    update v = (setProps (setVal v mt) nosuccprops, succprops)
+      where
+        mt :: a
+        mt = getVal v /\ val
+        (nosuccprops, succprops) =
+          if getVal v == mt -- no change
+          then (getProps v,[])
+          else notify mt (getProps v)
 
--- TODO: S.fromList requires an Ord constraint.
-notify :: (MonadError (m ()) m) => Set (m ()) -> m (Set (m ()))
--- TODO: Currently this relies on a propagator erroring, but we changed it to
--- instead have propagators return continuations.
-notify sets = (S.fromList . concat) <$> forM (S.toList sets)
-  (\s -> catchError (s >> return []) (const $ return [s]))
+--second collection is the succeeding propagators, first is the failed one that needs to be written back
+notify :: a -> PCollection m v a -> (PCollection m v a, PCollection m v a)
+notify val props = partition (not . ($ val) . crpred) props
 
-type ContMT m v a b = v a -> (a -> Bool) -> m b
+type ContMT m v a = v a -> (a -> Bool) -> m ()
 
-data ContRec m v a b = ContRec {
-  crptr :: v a,
+data ContRec m v a = ContRec {
+  crptr :: v a, --might not be needed
   crpred :: (a -> Bool),
-  crccont :: ContMT m v a b -- NOTE: I think this is correct now. Was (a -> m b)
+  crccont :: ContMT m v a -- NOTE: I think this is correct now. Was (a -> m b)
 }
 
-iff :: (MonadRead m v, HasValue a a, MonadError (ContRec m v a b) m) =>
-  v a -> (a -> Bool) -> m b -> m b
+type PCollection m v a = [ContRec m v a]
+
+iff :: (MonadRead m v, HasValue a a, MonadError (ContRec m v a) m) =>
+  v a -> (a -> Bool) -> m () -> m ()
 iff p pred m = read p $ \p' ->
   if pred p' then m else throwError (ContRec p pred (\pt c -> m))
 
