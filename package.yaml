@@ -38,6 +38,7 @@ default-extensions:
 - FlexibleContexts
 - ConstraintKinds
 - DeriveFunctor
+- FunctionalDependencies
 
 library:
   source-dirs: src

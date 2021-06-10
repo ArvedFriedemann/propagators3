@@ -2,7 +2,7 @@
 module Propagators where
 
 import Prelude hiding (read, pred)
-import "monad-var" MonadVar.Classes (MonadMutate, MonadWrite, MonadRead)
+import "monad-var" MonadVar.Classes (MonadNew, MonadMutate, MonadWrite, MonadRead)
 import qualified "monad-var" MonadVar.Classes as MV
 import "lattices" Algebra.Lattice
 import "containers" Data.Set (Set)
@@ -17,20 +17,25 @@ type MonadVar m v = (MonadMutate m v, MonadWrite m v, MonadRead m v)
 
 class HasValIn p a where
   getValue :: p -> a
-  setValue :: p -> a -> p
+  setValue :: a -> p -> p
 
-class (HasValIn p a) => HasValue p a where
+class (HasValIn p a) => HasValue p a | p -> a where
   getVal :: p -> a
   getVal = getValue
-  setVal :: p -> a -> p
+  setVal :: a -> p -> p
   setVal = setValue
 
-class (HasValIn k (PCollection m v k a)) => HasProps m v k a where
+class (HasValIn k (PCollection m v k a)) => HasProps m v k a | k -> a where
   getProps :: k -> PCollection m v k a
   getProps = getValue
-  setProps :: k -> PCollection m v k a -> k
+  setProps :: PCollection m v k a -> k -> k
   setProps = setValue
 
+class HasEmpty k where
+  empty :: k
+
+new :: forall m v k a. (MonadNew m v, HasEmpty k, HasValue k a, HasProps m v k a) => a -> m (v k)
+new val = MV.new $ setProps @m @v [] . setVal val $ empty
 
 --read p >>= m ~> watch p (read p >>= m)
 read :: (MonadRead m v, HasValue k a) => v k -> m a
@@ -42,7 +47,7 @@ write :: forall m v k a.
 write adr val = MV.mutate adr update >>= mapM_ (forkExec . crcont)
   where
     update :: k -> (k,PCollection m v k a)
-    update v = (setProps (setVal v mt) nosuccprops, succprops)
+    update v = (setProps nosuccprops (setVal mt v), succprops)
       where
         mt :: a
         mt = getVal v /\ val
@@ -57,7 +62,7 @@ addPropagator p pred cont =
   join $ MV.mutate p $ \v -> case pred (getVal v) of
       Failed -> (v, return ())
       Instance -> (v, cont $ getVal v)
-      NoInstance -> (setProps v (ContRec p pred (read p >>= cont) : getProps v), return ())
+      NoInstance -> (setProps (ContRec p pred (read p >>= cont) : getProps v) v, return ())
 
 --second collection is the succeeding propagators, first is the failed one that needs to be written back
 notify :: a -> PCollection m v k a -> (PCollection m v k a, PCollection m v k a)
