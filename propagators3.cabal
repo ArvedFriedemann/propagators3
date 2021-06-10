@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 0cada729f99e2f4edb946be42d410cb01107fc49a6c0bbd3795410b82e8b3306
+-- hash: 3cbd3de0fd5273897fadcacbafd0fba0c1c80cbfe33ec7a8379fd0a1f1418594
 
 name:           propagators3
 version:        0.1.0.0
@@ -32,11 +32,21 @@ library
       Paths_propagators3
   hs-source-dirs:
       src
-  default-extensions: PackageImports ViewPatterns RankNTypes ScopedTypeVariables TypeApplications MultiParamTypeClasses FlexibleInstances FlexibleContexts ConstraintKinds
+  default-extensions:
+      PackageImports
+      ViewPatterns
+      RankNTypes
+      ScopedTypeVariables
+      TypeApplications
+      MultiParamTypeClasses
+      FlexibleInstances
+      FlexibleContexts
+      ConstraintKinds
   build-depends:
       base >=4.7 && <5
     , containers
     , lattices
+    , monad-parallel
     , monad-var
     , mtl
   default-language: Haskell2010
@@ -47,12 +57,22 @@ executable propagators3-exe
       Paths_propagators3
   hs-source-dirs:
       app
-  default-extensions: PackageImports ViewPatterns RankNTypes ScopedTypeVariables TypeApplications MultiParamTypeClasses FlexibleInstances FlexibleContexts ConstraintKinds
+  default-extensions:
+      PackageImports
+      ViewPatterns
+      RankNTypes
+      ScopedTypeVariables
+      TypeApplications
+      MultiParamTypeClasses
+      FlexibleInstances
+      FlexibleContexts
+      ConstraintKinds
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , containers
     , lattices
+    , monad-parallel
     , monad-var
     , mtl
     , propagators3
@@ -65,12 +85,22 @@ test-suite propagators3-test
       Paths_propagators3
   hs-source-dirs:
       test
-  default-extensions: PackageImports ViewPatterns RankNTypes ScopedTypeVariables TypeApplications MultiParamTypeClasses FlexibleInstances FlexibleContexts ConstraintKinds
+  default-extensions:
+      PackageImports
+      ViewPatterns
+      RankNTypes
+      ScopedTypeVariables
+      TypeApplications
+      MultiParamTypeClasses
+      FlexibleInstances
+      FlexibleContexts
+      ConstraintKinds
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base >=4.7 && <5
     , containers
     , lattices
+    , monad-parallel
     , monad-var
     , mtl
     , propagators3
