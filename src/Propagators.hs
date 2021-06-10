@@ -38,8 +38,7 @@ read adr m = {-TODO: register listener-} (getVal <$> (MV.read adr)) >>= m
 write :: forall m v k a.
   (MonadFork m, MonadMutate m v, HasValue k a, HasProps k v a m, Eq a, Lattice a) =>
   v k -> a -> m ()
--- TODO: notify returns a set of propagators that haven't fired. Use them.
-write adr val = MV.mutate adr update >>= mapM_ (forkExec . crcont) --TODO: perform the propagators concurrently
+write adr val = MV.mutate adr update >>= mapM_ (forkExec . crcont)
   where
     update :: k -> (k,PCollection m v a)
     update v = (setProps (setVal v mt) nosuccprops, succprops)
