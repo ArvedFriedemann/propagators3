@@ -37,17 +37,8 @@ class HasEmpty k where
 write :: forall m v k a b.
   (MonadFork m, Dereference m v, MonadMutate m v, HasValue b a, HasValue (FEither v b) a, HasProps m b a, HasProps m (FEither v b) a, Eq a, Lattice a) =>
   v (FEither v b) -> a -> m ()
-write adr' val = deRef adr' >>= \adr -> MV.mutate adr update >>= mapM_ (forkExec . crcont)
-  where
-    update :: (FEither v b) -> ((FEither v b),PCollection m a)
-    update v = (setProps nosuccprops (setVal mt v), succprops)
-      where
-        mt :: a
-        mt = getVal v /\ val
-        (nosuccprops, succprops) =
-          if getVal v == mt -- no change
-          then (getProps v,[])
-          else notify mt (getProps v)
+write adr' val = deRef adr' >>= \adr -> MV.mutate adr (\v -> updateVal (setVal (getVal v /\ val) v)) >>= runProps
+
 
 addPropagator :: (Dereference m v, MonadMutate m v, HasValue b a, HasValue (FEither v b) a, HasProps m b a, HasProps m (FEither v b) a) =>
   v (FEither v b) -> (a -> Instantiated) -> (a -> m ()) -> m ()
@@ -58,10 +49,18 @@ addPropagator p' pred cont =
       NoInstance -> (setProps (ContRec pred (read p >>= cont) : getProps v) v, return ())
 
 --second collection is the succeeding propagators, first is the failed one that needs to be written back
-notify :: a -> PCollection m a -> (PCollection m a, PCollection m a)
-notify val props = (inst, noInst)
+notifyPure :: a -> PCollection m a -> (PCollection m a, PCollection m a)
+notifyPure val props = (inst, noInst)
   where (_, noInst, inst) = splitInstantiated props (($ val) . crpred)
 
+updateVal :: (HasValue b a, HasValue (FEither v b) a, HasProps m b a, HasProps m (FEither v b) a)
+  => (FEither v b) -> ((FEither v b), PCollection m a)
+updateVal mt = (setProps nosuccprops mt, succprops)
+  where --TODO: equality check with old value?
+    (nosuccprops, succprops) = notifyPure (getVal mt) (getProps mt)
+
+runProps :: (MonadFork m) => PCollection m a -> m ()
+runProps = mapM_ (forkExec . crcont)
 
 data ContRec m a = ContRec {
   crpred :: a -> Instantiated,
@@ -89,12 +88,17 @@ iff p pred m = addPropagator p pred m
 --Pointer merging
 -----------------------------------
 
-newtype FEither v a = FEither (Either (v a) a)
+newtype FEither v a = FEither (Either (v (FEither v a)) a)
 
 class Dereference m v where
   deRef :: v (FEither v a) -> m (v (FEither v a))
-  reRef :: v (FEither v a) -> v (FEither v a) -> m ()
 
+merge :: (MonadMutate m v) => v (FEither v b) -> v (FEither v b) -> m ()
+merge v1' v2' = do
+  v1 <- deRef v1'
+  v2 <- deRef v2'
+  oldCont <- MV.mutate v2 $ \v -> (FEither $ Left v1,v)
+  MV.mutate v1 (\v -> updateVal (v /\ oldCont)) >>= runProps
 
 
 class (Monad m) => IndMonadNew m v k where
@@ -126,7 +130,6 @@ instance HasProps m k a => HasValIn (FEither v k) (PCollection m a) where
   -- getProps :: k -> PCollection m v k a
   getValue (FEither (Right v)) = getProps v
   setValue x (FEither (Right v)) = FEither $ Right $ setProps x v
-
 
 
 
