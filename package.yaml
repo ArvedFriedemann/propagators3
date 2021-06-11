@@ -39,6 +39,7 @@ default-extensions:
 - ConstraintKinds
 - DeriveFunctor
 - FunctionalDependencies
+- DerivingVia
 
 library:
   source-dirs: src

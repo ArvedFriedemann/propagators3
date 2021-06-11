@@ -19,34 +19,27 @@ class HasValIn p a where
   getValue :: p -> a
   setValue :: a -> p -> p
 
-class (HasValIn p a) => HasValue p a | p -> a where
+class (HasValIn p a) => HasValue p a where
   getVal :: p -> a
   getVal = getValue
   setVal :: a -> p -> p
   setVal = setValue
 
-class (HasValIn k (PCollection m v k a)) => HasProps m v k a | k -> a where
-  getProps :: k -> PCollection m v k a
+class (HasValIn k (PCollection m a)) => HasProps m k a where
+  getProps :: k -> PCollection m a
   getProps = getValue
-  setProps :: PCollection m v k a -> k -> k
+  setProps :: PCollection m a -> k -> k
   setProps = setValue
 
 class HasEmpty k where
   empty :: k
 
-new :: forall m v k a. (MonadNew m v, HasEmpty k, HasValue k a, HasProps m v k a) => a -> m (v k)
-new val = MV.new $ setProps @m @v [] . setVal val $ empty
-
---read p >>= m ~> watch p (read p >>= m)
-read :: (MonadRead m v, HasValue k a) => v k -> m a
-read adr = (getVal <$> (MV.read adr))
-
-write :: forall m v k a.
-  (MonadFork m, MonadMutate m v, HasValue k a, HasProps m v k a, Eq a, Lattice a) =>
-  v k -> a -> m ()
-write adr val = MV.mutate adr update >>= mapM_ (forkExec . crcont)
+write :: forall m v k a b.
+  (MonadFork m, Dereference m v, MonadMutate m v, HasValue b a, HasValue (FEither v b) a, HasProps m b a, HasProps m (FEither v b) a, Eq a, Lattice a) =>
+  v (FEither v b) -> a -> m ()
+write adr' val = deRef adr' >>= \adr -> MV.mutate adr update >>= mapM_ (forkExec . crcont)
   where
-    update :: k -> (k,PCollection m v k a)
+    update :: (FEither v b) -> ((FEither v b),PCollection m a)
     update v = (setProps nosuccprops (setVal mt v), succprops)
       where
         mt :: a
@@ -56,29 +49,28 @@ write adr val = MV.mutate adr update >>= mapM_ (forkExec . crcont)
           then (getProps v,[])
           else notify mt (getProps v)
 
-addPropagator :: (MonadMutate m v, HasValue k a, HasProps m v k a) =>
-  v k -> (a -> Instantiated) -> (a -> m ()) -> m ()
-addPropagator p pred cont =
-  join $ MV.mutate p $ \v -> case pred (getVal v) of
+addPropagator :: (Dereference m v, MonadMutate m v, HasValue b a, HasValue (FEither v b) a, HasProps m b a, HasProps m (FEither v b) a) =>
+  v (FEither v b) -> (a -> Instantiated) -> (a -> m ()) -> m ()
+addPropagator p' pred cont =
+  join $ deRef p' >>= \p -> MV.mutate p $ \v->  case pred (getVal v) of
       Failed -> (v, return ())
       Instance -> (v, cont $ getVal v)
-      NoInstance -> (setProps (ContRec p pred (read p >>= cont) : getProps v) v, return ())
+      NoInstance -> (setProps (ContRec pred (read p >>= cont) : getProps v) v, return ())
 
 --second collection is the succeeding propagators, first is the failed one that needs to be written back
-notify :: a -> PCollection m v k a -> (PCollection m v k a, PCollection m v k a)
+notify :: a -> PCollection m a -> (PCollection m a, PCollection m a)
 notify val props = (inst, noInst)
   where (_, noInst, inst) = splitInstantiated props (($ val) . crpred)
 
 
-data ContRec m v k a = ContRec {
-  crptr :: v k, --might not be needed
+data ContRec m a = ContRec {
   crpred :: a -> Instantiated,
   crcont :: m ()
 }
 
 
 
-type PCollection m v k a = [ContRec m v k a]
+type PCollection m a = [ContRec m a]
 
 data Instantiated = Failed | NoInstance | Instance
   deriving (Show, Eq, Ord)
@@ -88,6 +80,58 @@ splitInstantiated lst f = (filter ((== Failed) . f) lst
                           ,filter ((== NoInstance) . f) lst
                           ,filter ((== Instance) . f) lst)
 
-iff :: (MonadMutate m v, HasValue k a, HasProps m v k a) =>
-  v k -> (a -> Instantiated) -> (a -> m ()) -> m ()
+iff :: (Dereference m v, MonadMutate m v, HasValue b a, HasValue (FEither v b) a, HasProps m b a, HasProps m (FEither v b) a) =>
+  v (FEither v b) -> (a -> Instantiated) -> (a -> m ()) -> m ()
 iff p pred m = addPropagator p pred m
+
+
+-----------------------------------
+--Pointer merging
+-----------------------------------
+
+newtype FEither v a = FEither (Either (v a) a)
+
+class Dereference m v where
+  deRef :: v (FEither v a) -> m (v (FEither v a))
+  reRef :: v (FEither v a) -> v (FEither v a) -> m ()
+
+
+
+class (Monad m) => IndMonadNew m v k where
+  new :: (HasEmpty (k b), HasValue b a, HasValue (k b) a) => a -> m (v (k b))
+
+class (Monad m) => IndMonadRead m v k where
+  read :: (HasValue b a, HasValue (k b) a) => v (k b) -> m a
+
+class (Monad m) => IndMonadMutate m v k where
+  mutate :: (HasValue b a, HasValue (k b) a) => v (k b) -> (a -> (a,s)) -> m s
+
+instance (MonadNew m v, Dereference m v) => IndMonadNew m v (FEither v) where
+  new a = MV.new (setVal a empty)
+
+instance (MonadRead m v, Dereference m v) => IndMonadRead m v (FEither v) where
+  read p = deRef p >>= (getVal <$>) . MV.read
+
+instance (MonadMutate m v, Dereference m v) => IndMonadMutate m v (FEither v) where
+  mutate p f = deRef p >>= \p' -> MV.mutate p' (\v -> let (a',s) = f $ getVal v in (setVal a' v, s))
+
+
+
+
+instance HasValue k a => HasValIn (FEither v k) a where
+  getValue (FEither (Right v)) = getVal v
+  setValue x (FEither (Right v)) = FEither $ Right $ setVal x v
+
+instance HasProps m k a => HasValIn (FEither v k) (PCollection m a) where
+  -- getProps :: k -> PCollection m v k a
+  getValue (FEither (Right v)) = getProps v
+  setValue x (FEither (Right v)) = FEither $ Right $ setProps x v
+
+
+
+
+
+
+
+
+--
