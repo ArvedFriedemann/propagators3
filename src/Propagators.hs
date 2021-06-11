@@ -37,7 +37,7 @@ class HasEmpty k where
 write :: forall m v k a b.
   (MonadFork m, Dereference m v, MonadMutate m v, HasValue b a, HasValue (FEither v b) a, HasProps m b a, HasProps m (FEither v b) a, Eq a, Lattice a) =>
   v (FEither v b) -> a -> m ()
-write adr' val = deRef adr' >>= \adr -> MV.mutate adr (\v -> updateVal (setVal (getVal v /\ val) v)) >>= runProps
+write adr' val = deRef adr' >>= \adr -> MV.mutate adr (\v -> updateVal @_ @_ @_ @a (setVal (getVal v /\ val) v)) >>= runProps
 
 
 addPropagator :: (Dereference m v, MonadMutate m v, HasValue b a, HasValue (FEither v b) a, HasProps m b a, HasProps m (FEither v b) a) =>
@@ -53,7 +53,7 @@ notifyPure :: a -> PCollection m a -> (PCollection m a, PCollection m a)
 notifyPure val props = (inst, noInst)
   where (_, noInst, inst) = splitInstantiated props (($ val) . crpred)
 
-updateVal :: (HasValue b a, HasValue (FEither v b) a, HasProps m b a, HasProps m (FEither v b) a)
+updateVal :: forall m v k a b. (HasValue b a, HasValue (FEither v b) a, HasProps m b a, HasProps m (FEither v b) a)
   => (FEither v b) -> ((FEither v b), PCollection m a)
 updateVal mt = (setProps nosuccprops mt, succprops)
   where --TODO: equality check with old value?
@@ -90,15 +90,19 @@ iff p pred m = addPropagator p pred m
 
 newtype FEither v a = FEither (Either (v (FEither v a)) a)
 
+instance Lattice a => Lattice (FEither v a) where
+  (FEither (Right v1)) /\ (FEither (Right v2)) = FEither $ Right $ v1 /\ v2
+  (FEither (Right v1)) \/ (FEither (Right v2)) = FEither $ Right $ v1 \/ v2
+
 class Dereference m v where
   deRef :: v (FEither v a) -> m (v (FEither v a))
 
-merge :: (MonadMutate m v) => v (FEither v b) -> v (FEither v b) -> m ()
+merge :: forall m v k a b. (Dereference m v, MonadMutate m v, MonadFork m, Lattice b, HasValue (FEither v b) a, HasValue b a, HasProps m (FEither v b) a, HasProps m b a) => v (FEither v b) -> v (FEither v b) -> m ()
 merge v1' v2' = do
   v1 <- deRef v1'
   v2 <- deRef v2'
   oldCont <- MV.mutate v2 $ \v -> (FEither $ Left v1,v)
-  MV.mutate v1 (\v -> updateVal (v /\ oldCont)) >>= runProps
+  MV.mutate v1 (\v -> updateVal @_ @_ @_ @a (v /\ oldCont)) >>= runProps
 
 
 class (Monad m) => IndMonadNew m v k where

@@ -40,6 +40,7 @@ default-extensions:
 - DeriveFunctor
 - FunctionalDependencies
 - DerivingVia
+- AllowAmbiguousTypes
 
 library:
   source-dirs: src
