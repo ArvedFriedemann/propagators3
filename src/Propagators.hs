@@ -48,7 +48,7 @@ new val = createSP $ setProps @m @v [] . setVal val $ empty
 
 --read p >>= m ~> watch p (read p >>= m)
 read :: (MonadRead m v, HasValue k a, StackedPointer m (v kp) k) => v kp -> m a
-read adr = getVal <$> deRef adr
+read adr = getVal <$> (deRef adr)
 
 write :: forall m v kp k a.
   (MonadFork m, HasValue k a, HasProps m v k a, StackedPointer m (v kp) k, Eq a, Lattice a) =>
@@ -65,21 +65,13 @@ write adr val = mutate adr update >>= mapM_ (forkExec . crcont)
           then (getProps v,[])
           else notify mt (getProps v)
 
-addPropagator :: forall m v kp k a. (Monad m, MonadRead m v, MonadWrite m v, HasProps m v kp a, HasValue k a, StackedPointer m (v kp) k) =>
+addPropagator :: (HasValue k a, HasProps m v k a, StackedPointer m (v kp) k) =>
   v kp -> (a -> Instantiated) -> (a -> m ()) -> m ()
--- TODO: lose MonadRead and MonadWrite via some form of mutation on kp (but it was hard)
-addPropagator p pred cont = do
-    rp <- MV.read p
-    a <- deRef p
-    let (r, m) = blah rp (getVal a)
-    MV.write p r
-    m
-  where 
-    blah :: kp -> a -> (kp, m ())
-    blah v a = case pred a of
+addPropagator p pred cont =
+  join $ mutate p $ \v -> case pred (getVal v) of
       Failed -> (v, return ())
-      Instance -> (v, cont a)
-      NoInstance -> (setProps (ContRec p pred (deRef p >>= cont . getVal) : getProps v) v, return ())
+      Instance -> (v, cont $ getVal v)
+      NoInstance -> (setProps (ContRec p pred (read p >>= cont) : getProps v) v, return ())
 
 --second collection is the succeeding propagators, first is the failed one that needs to be written back
 notify :: a -> PCollection m v k a -> (PCollection m v k a, PCollection m v k a)
@@ -105,6 +97,6 @@ splitInstantiated lst f = (filter ((== Failed) . f) lst
                           ,filter ((== NoInstance) . f) lst
                           ,filter ((== Instance) . f) lst)
 
-iff :: (HasProps m v kp a, StackedPointer m (v kp) k) =>
+iff :: (HasValue k a, HasProps m v k a, StackedPointer m (v kp) k) =>
   v kp -> (a -> Instantiated) -> (a -> m ()) -> m ()
-iff = addPropagator
+iff p pred m = addPropagator p pred m
