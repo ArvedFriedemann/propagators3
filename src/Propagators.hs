@@ -13,7 +13,7 @@ import "base" Control.Monad
 import "monad-parallel" Control.Monad.Parallel (MonadFork, forkExec)
 
 
-type MonadVar m v = (MonadMutate m v, MonadWrite m v, MonadRead m v)
+type MonadVar m v = (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m v)
 
 class HasValIn p a where
   getValue :: p -> a
@@ -134,8 +134,6 @@ instance HasProps m k a => HasValIn (FEither v k) (PCollection m a) where
   -- getProps :: k -> PCollection m v k a
   getValue (FEither (Right v)) = getProps v
   setValue x (FEither (Right v)) = FEither $ Right $ setProps x v
-
-
 
 
 

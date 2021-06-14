@@ -41,6 +41,7 @@ default-extensions:
 - FunctionalDependencies
 - DerivingVia
 - AllowAmbiguousTypes
+- UndecidableInstances
 
 library:
   source-dirs: src
