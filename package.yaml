@@ -42,7 +42,6 @@ default-extensions:
 - DerivingVia
 - AllowAmbiguousTypes
 - UndecidableInstances
-- OverlappingInstances
 
 library:
   source-dirs: src

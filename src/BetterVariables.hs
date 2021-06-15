@@ -1,6 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module BetterVariables where
-
+{-}
 import Prelude hiding (read, pred)
 import "monad-var" MonadVar.Classes (MonadNew, MonadMutate, MonadWrite, MonadRead)
 import qualified "monad-var" MonadVar.Classes as MV
@@ -20,11 +20,43 @@ instance MutateTuple (a, x) a where
 class FindInTuple x t where
   findInTuple :: x -> t
 
-instance FindInTuple (b, c) t => FindInTuple (a, (b, c)) t where
-  findInTuple = findInTuple . snd
+type family If (b :: Bool) (t :: *) (f :: *) :: * where
+  If 'True t _ = t
+  If 'False _ t = t
+
+type family Or (b :: Bool) (b' :: Bool) :: Bool where
+  Or 'False 'False = 'False
+  Or _ _ = 'True
+
+type family Contains (t :: *) (struct :: *) :: Bool where
+  Contains t (a, b) = Or (Contains t a) (Contains t b)
+  Contains t t = 'True
+  Contains t b = 'False
+
+instance FindInTuple' x t (Contains t a) =>
+  FindInTuple (a, b) t where
+  findInTuple = findInTuple'
+
+class FindInTuple' x t (b :: Bool) where
+  findInTuple' :: x -> t
+
+instance FindInTuple a t l => FindInTuple' (a, b) t 'True where
+  findInTuple' = findInTuple . fst
+
+instance FindInTuple b t l => FindInTuple' (a, b) t 'False where
+  findInTuple' = findInTuple . snd
 
 instance FindInTuple (a, x) a where
   findInTuple = fst
+
+instance FindInTuple (a, x) x where
+  findInTuple = snd
+
+instance FindInTuple a a where
+  findInTuple = id
+
+found :: Bool
+found = findInTuple (((), (9 :: Int)), ((6 :: Int), False))
 
 class BuildTuple x t where
   buildTuple :: x -> t -> x
@@ -75,3 +107,4 @@ f ptr = do
    val <- read @_ @_ @_ @a ptr
    props <- read @_ @_ @_ @c ptr
    return ()
+-}
