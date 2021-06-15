@@ -137,6 +137,27 @@ instance HasProps m k a => HasValIn (FEither v k) (PCollection m a) where
 
 
 
+{-
+class (MonadVar m v) => MonadVarLens m v where
+  readLense :: Lense a b -> v a -> m b
+  ...
 
+class (HasVal b a) where
+  value :: Lense b a
+
+class MonadVar m v => KMonadVar m v b a where
+  lens :: Lens a b
+  read :: v b -> m a
+  read = (lens) <$> MV.read
+
+
+KMonadVar m v b a => KMonadVar m v (x,b) a
+
+MonadProps m v p a
+
+KMonadVar m v (x,b) a => MonadProps m v (x,b) a
+
+
+-}
 
 --
