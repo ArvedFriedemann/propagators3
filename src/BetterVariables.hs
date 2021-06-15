@@ -8,13 +8,13 @@ import "lattices" Algebra.Lattice
 
 type MonadVar m v = (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m v)
 
-class MutateTuple x t r where
+class MutateTuple x t where
   mutateTuple :: x -> (t -> (t, r)) -> (x, r)
 
-instance MutateTuple x t r => MutateTuple (a, x) t r where
+instance MutateTuple x t => MutateTuple (a, x) t where
   mutateTuple (a, b) f = let (mut, ret) = mutateTuple b f in ((a, mut), ret)
 
-instance MutateTuple (a, x) a r where
+instance MutateTuple (a, x) a where
   mutateTuple (a, b) f = let (mut, ret) = f a in ((mut, b), ret)
 
 class FindInTuple x t where
@@ -42,9 +42,9 @@ instance (BoundedMeetSemiLattice a, BoundedMeetSemiLattice b) => EmptyTuple (a, 
   emptyTuple = (top, top)
 
 instance (BoundedMeetSemiLattice a, EmptyTuple (b, c)) => EmptyTuple (a, (b, c)) where
-  emptyTuple = (top, emptyTuple) 
+  emptyTuple = (top, emptyTuple)
 
-class (Monad m, MonadVar m v) => KMonadVar m v b a s where
+class (Monad m, MonadVar m v) => KMonadVar m v b a where
   read :: v b -> m a
   new :: a -> m (v b)
   mutate :: v b -> (a -> (a,s)) -> m s
@@ -52,7 +52,7 @@ class (Monad m, MonadVar m v) => KMonadVar m v b a s where
   proj :: b -> a
   mty :: b
 
-instance {-# OVERLAPPING #-} (BoundedMeetSemiLattice a, Lattice a, MonadVar m v) => KMonadVar m v a a s where
+instance {-# OVERLAPPING #-} (BoundedMeetSemiLattice a, Lattice a, MonadVar m v) => KMonadVar m v a a where
   read = MV.read
   new = MV.new
   mutate = MV.mutate
@@ -61,17 +61,17 @@ instance {-# OVERLAPPING #-} (BoundedMeetSemiLattice a, Lattice a, MonadVar m v)
   mty = top
 
 -- TODO: some of these could be rewritten in terms of MutateTuple
-instance {-# OVERLAPPABLE #-} (KMonadVar m v a a' s, FindInTuple (x, y) a, BuildTuple (x, y) a', EmptyTuple (x, y), MutateTuple (x,y) a' s) => KMonadVar m v (x, y) a' s where
+instance {-# OVERLAPPABLE #-} (KMonadVar m v a a', FindInTuple (x, y) a, BuildTuple (x, y) a', EmptyTuple (x, y), MutateTuple (x,y) a') => KMonadVar m v (x, y) a' where
   read = --(proj <$>) . (findInTuple <$>) . MV.read
-    fmap ((proj @m @v @a @a' @s) . findInTuple) . MV.read
+    fmap ((proj @m @v @a) . findInTuple) . MV.read
   new v = MV.new $ buildTuple emptyTuple v
   mutate ptr f = MV.mutate ptr (`mutateTuple` f)
   inj a tp = buildTuple tp a
-  proj = (proj @m @v @a @a' @s) . findInTuple
+  proj = (proj @m @v @a) . findInTuple
   mty = emptyTuple
 
-f :: forall m v b a c s. (KMonadVar m v b a s, KMonadVar m v b c s) => v b -> m ()
+f :: forall m v b a c. (KMonadVar m v b a, KMonadVar m v b c) => v b -> m ()
 f ptr = do
-   val <- read @_ @_ @_ @a @s ptr
-   props <- read @_ @_ @_ @c @s ptr
+   val <- read @_ @_ @_ @a ptr
+   props <- read @_ @_ @_ @c ptr
    return ()
