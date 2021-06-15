@@ -1,5 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
-module LenseVars where
+module LensVars where
 
 import Prelude hiding (read, pred)
 import "monad-var" MonadVar.Classes (MonadNew, MonadMutate, MonadMutate_, MonadWrite, MonadRead)
@@ -19,6 +19,11 @@ deRef :: (MonadRead m v) => PtrType v a -> m (v a)
 deRef (P p) = MV.read p >>= \v -> case v of
   Left p' -> return p'
   Right p' -> deRef p'
+
+deRefShallow :: (MonadRead m v) => PtrType v a -> m (PtrType v a)
+deRefShallow (P p) = MV.read p >>= \v -> case v of
+  Left _ -> return (P p)
+  Right p' -> deRefShallow p'
 
 readRef :: (MonadRead m v) => PtrType v a -> m a
 readRef p = deRef p >>= MV.read
