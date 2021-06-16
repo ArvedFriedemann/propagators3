@@ -27,9 +27,6 @@ class HasValue p a where
 class HasProps m p a where
   props :: Lens' p (PCollection m a)
 
-class HasEmpty k where
-  empty :: k
-
 idLens :: Lens' a a
 idLens = lens id const
 

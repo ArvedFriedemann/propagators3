@@ -44,6 +44,7 @@ default-extensions:
 - DerivingVia
 - AllowAmbiguousTypes
 - UndecidableInstances
+- QuantifiedConstraints
 
 library:
   source-dirs: src
