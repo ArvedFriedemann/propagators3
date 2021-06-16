@@ -29,8 +29,8 @@ instance BoundedMeetSemiLattice [a] where
 
 test :: IO ()
 test = do
-  (v1 :: PtrType IORef (PtrCont IO [String])) <- newLens (value @_ @[String]) ["a"]
-  (v2 :: PtrType IORef (PtrCont IO [String])) <- newLens (value @_ @[String]) []
-  merge @_ @[String] v1 v2
+  v1 <- newLens (value @_ @[String]) ["a"]
+  v2 <- newLens (value @_ @[String]) []
+  merge @(PtrCont IO [String]) @[String] @_ @IORef v1 v2
   iff v2 (\(v:: [String]) -> if null v then NoInstance else Instance) (putStrLn . show)
   return ()
