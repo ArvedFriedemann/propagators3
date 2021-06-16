@@ -26,14 +26,14 @@ instance Lattice [a] where
 instance BoundedMeetSemiLattice [a] where
   top = []
 
-newLens' :: forall a m . (BoundedMeetSemiLattice a, MonadNew m IORef) =>
-  a -> m (PtrType IORef (PtrCont m a))
+newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadNew m v) =>
+  a -> m (PtrType v (PtrCont m a))
 newLens' = newLens value
 
-test :: IO ()
+test :: forall v. (v ~ IORef) => IO ()
 test = do
-  v1 <- newLens' ["a"]
-  v2 <- newLens' []
+  v1 <- newLens' @v ["a"]
+  v2 <- newLens' @v []
   merge v1 v2
   iff v2 (\v -> if null v then NoInstance else Instance) (putStrLn . show)
   return ()
