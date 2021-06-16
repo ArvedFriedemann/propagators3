@@ -16,13 +16,15 @@ import "lens" Control.Lens.Lens
 import "lens" Control.Lens.Setter
 import "lens" Control.Lens.Getter
 
+import "either" Data.Either.Combinators
+
 
 import "this" LensVars
 
 class HasValue p a where
   value :: Lens' p a
 
-class HasProps p where
+class HasProps m p a where
   props :: Lens' p (PCollection m a)
 
 class HasEmpty k where
@@ -31,13 +33,20 @@ class HasEmpty k where
 idLens :: Lens' a a
 idLens = lens id const
 
-write ::
-  (MonadFork m, HasValue b a) =>
+write :: forall b a m v .
+  (MonadFork m,
+   MonadMutate m v,
+   HasValue b a,
+   HasProps m b a,
+   Lattice a) =>
   PtrType v b -> a -> m ()
-write adr val = mutateLens idLens adr (\v -> updateVal $ set value (v ^. value /\ val) v) >>= runProps
+write adr val = mutateLens idLens adr (\v -> updateVal @_ @a $ set value (v ^. value /\ val) v) >>= runProps
 
 
-addPropagator :: (HasValue b a, HasProps b) =>
+addPropagator :: forall b a m v.
+  ( MonadMutate m v,
+    HasValue b a,
+    HasProps m b a) =>
   PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()
 addPropagator p pred cont =
   join $ mutateLens idLens p $ \v ->  case pred (v ^. value) of
@@ -50,8 +59,10 @@ notifyPure :: a -> PCollection m a -> (PCollection m a, PCollection m a)
 notifyPure val props = (inst, noInst)
   where (_, noInst, inst) = splitInstantiated props (($ val) . crpred)
 
-updateVal :: (HasValue b a, HasProps b)
-  => a -> (a, PCollection m a)
+updateVal :: forall b a m.
+  (HasValue b a,
+   HasProps m b a) =>
+   b -> (b, PCollection m a)
 updateVal mt = (set props nosuccprops mt, succprops)
   where --TODO: equality check with old value?
     (nosuccprops, succprops) = notifyPure (mt ^. value) (mt ^. props)
@@ -76,22 +87,28 @@ splitInstantiated lst f = (filter ((== Failed) . f) lst
                           ,filter ((== NoInstance) . f) lst
                           ,filter ((== Instance) . f) lst)
 
-iff :: () =>
-  PtrType v a -> (a -> Instantiated) -> (a -> m ()) -> m ()
-iff p pred m = addPropagator p pred m
+iff :: forall b a m v.
+  ( MonadMutate m v,
+    HasValue b a,
+    HasProps m b a) =>
+  PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()
+iff = addPropagator
 
 
 -----------------------------------
 --Pointer merging
 -----------------------------------
 
-merge :: (MonadMutate m v) => PtrType v a -> PtrType v a -> m ()
+merge :: forall b a m v.
+  ( MonadFork m,
+    MonadMutate m v,
+    HasValue b a,
+    HasProps m b a,
+    Lattice b) => PtrType v b -> PtrType v b -> m ()
 merge v1' v2' = do
-  v1 <- deRefShallow v1'
-  v2 <- deRefShallow v2'
-  (fromRight -> oldCont) <- MV.mutate (unpackPtrType v2) $ \v -> (Right v1,v)
-  --There is a problem here: When the reference is not within the pointer directly, transfer is not threadsafe. Propagators can still change the old value, as it is not invalidated!
-  MV.mutate v1 (\v -> updateVal $ v /\ oldCont) >>= runProps
+  v2 <- deRef v2'
+  (fromLeft' -> oldCont) <- MV.mutate v2 $ \v -> (Right v1',v)
+  mutateLens idLens v1' (\v -> updateVal @_ @a $ v /\ oldCont) >>= runProps
 
 
 
