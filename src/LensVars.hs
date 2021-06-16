@@ -12,7 +12,13 @@ import "either" Data.Either.Combinators
 
 type MonadVar m v = (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m v)
 
+type StdPtr v = (forall a. Eq (v a))
+
 newtype PtrType v a = P (v (Either a (PtrType v a)))
+
+instance (forall a. Eq (v a)) => Eq (PtrType v a) where
+  (P p1) == (P p2) = p1 == p2
+
 unpackPtrType :: PtrType v a -> v (Either a (PtrType v a))
 unpackPtrType (P p) = p
 

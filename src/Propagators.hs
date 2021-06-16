@@ -99,13 +99,18 @@ iff = addPropagator
 merge :: forall b a m v.
   ( MonadFork m,
     MonadMutate m v,
+    StdPtr v,
     HasValue b a,
     HasProps m b a,
     Lattice b) => PtrType v b -> PtrType v b -> m ()
 merge v1' v2' = do
-  v2 <- deRef v2'
-  (fromLeft' -> oldCont) <- MV.mutate v2 $ \v -> (Right v1',v)
-  mutateLens idLens v1' (\v -> updateVal @_ @a $ v /\ oldCont) >>= runProps
+  v2r <- deRefRaw v2'
+  v1r <- deRefRaw v1'
+  --pointers cannot be merged with themselves for loop prevention
+  unless (v1r == v2r) $ do
+    v2 <- deRef v2r
+    (fromLeft' -> oldCont) <- MV.mutate v2 $ \v -> (Right v1',v)
+    mutateLens idLens v1' (\v -> updateVal @_ @a $ v /\ oldCont) >>= runProps
 
 
 
