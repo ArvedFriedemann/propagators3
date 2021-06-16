@@ -13,10 +13,10 @@ import "lens" Control.Lens
 
 type PtrCont m a = (a,PCollection m a)
 
-instance HasValue (PtrCont m a) a where
+instance (a~b) => HasValue (PtrCont m a) b where
   value = _1
 
-instance HasProps m (PtrCont m a) a where
+instance (a~b) => HasProps m (PtrCont m a) b where
   props = _2
 
 instance Lattice [a] where
@@ -26,11 +26,14 @@ instance Lattice [a] where
 instance BoundedMeetSemiLattice [a] where
   top = []
 
+newLens' :: forall a m . (BoundedMeetSemiLattice a, MonadNew m IORef) =>
+  a -> m (PtrType IORef (PtrCont m a))
+newLens' = newLens value
 
 test :: IO ()
 test = do
-  v1 <- newLens (value @_ @[String]) ["a"]
-  v2 <- newLens (value @_ @[String]) []
-  merge @(PtrCont IO [String]) @[String] @_ @IORef v1 v2
-  iff v2 (\(v:: [String]) -> if null v then NoInstance else Instance) (putStrLn . show)
+  v1 <- newLens' ["a"]
+  v2 <- newLens' []
+  merge v1 v2
+  iff v2 (\v -> if null v then NoInstance else Instance) (putStrLn . show)
   return ()

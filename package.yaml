@@ -45,6 +45,7 @@ default-extensions:
 - AllowAmbiguousTypes
 - UndecidableInstances
 - QuantifiedConstraints
+- TypeFamilies
 
 library:
   source-dirs: src
