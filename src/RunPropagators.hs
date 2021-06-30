@@ -37,3 +37,56 @@ test = do
   merge v1 v2
   iff v2 (\v -> if null v then NoInstance else Instance) (putStrLn . show)
   return ()
+
+{-
+
+X,Y variables
+X -m> Y ~> Reason for X, Reason for m implies Reason for Y
+A
+
+do
+iff X ... iff Y ... iff Z ... write K <~ put reasons X Y Z
+
+k :: m [v a]
+
+do
+  p <- newLens' @v ...
+  ptrs1 <- withScoped p $ \p' -> k p' >>= ifSucceeds then p' eq p else create learned clause
+  ptrs2 <- scope 2 $ k p
+  sequence_ $ zipWith dirEq ptrs1 ptrs2
+
+scoped m
+
+iff x nil (...) ;
+iff x cons $ splitCons (\x xs -> ) ;
+
+f [] = ...
+f (x : xs) = ...
+
+     1
+    / \
+  2   3
+/  \
+4  5
+
+IORef (IntMap (val, prop))
+IORef (IntMap (IORef (val, prop)))
+
+varA
+scopeid 1       2     3 4 5
+value   (T,p1) (a,p2) T b T
+propagators:
+  1 -> ...
+  2 -> ...
+  3 -> ...
+
+
+
+
+
+
+
+
+
+
+-}
