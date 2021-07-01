@@ -61,6 +61,7 @@ readVarMap pm = do
   case mp !? currScp of
     Just v -> return v
     Nothing -> do
+      --TODO: Need to create upwards propagators.
       nv <- P <$> MV.new (Left top, (currScp,pm))
       MV.mutate pm (insertNoReplace currScp nv)
 

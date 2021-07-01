@@ -33,6 +33,7 @@ idLens = lens id const
 write :: forall b a m v .
   (MonadFork m,
    MonadMutate m v,
+   HasScope m,
    HasValue b a,
    HasProps m b a,
    Lattice a) =>
@@ -41,7 +42,9 @@ write adr val = mutateLens idLens adr (\v -> updateVal @_ @a $ set value (v ^. v
 
 
 addPropagator :: forall b a m v.
-  ( MonadMutate m v,
+  ( MonadVar m v,
+    HasScope m,
+    HasTop b,
     HasValue b a,
     HasProps m b a) =>
   PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()
@@ -85,7 +88,9 @@ splitInstantiated lst f = (filter ((== Failed) . f) lst
                           ,filter ((== Instance) . f) lst)
 
 iff :: forall b a m v.
-  ( MonadMutate m v,
+  ( MonadVar m v,
+    HasScope m,
+    HasTop b,
     HasValue b a,
     HasProps m b a) =>
   PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()
@@ -110,7 +115,8 @@ merge v1' v2' = do
   --pointers cannot be merged with themselves for loop prevention
   unless (v1r == v2r) $ do
     v2 <- deRef v2r
-    (fromLeft' -> oldCont) <- MV.mutate v2 $ \v -> (Right v1',v)
+    --TODO: deRef here not threadsafe! (possibly)
+    oldCont <- MV.mutate v2 $ \(v,rest) -> ((Right v1',rest),v)
     mutateLens idLens v1' (\v -> updateVal @_ @a $ v /\ oldCont) >>= runProps
 
 

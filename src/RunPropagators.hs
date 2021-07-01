@@ -26,7 +26,7 @@ instance Lattice [a] where
 instance BoundedMeetSemiLattice [a] where
   top = []
 
-newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadNew m v) =>
+newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadVar m v, HasScope m) =>
   a -> m (PtrType v (PtrCont m a))
 newLens' = newLens value
 
