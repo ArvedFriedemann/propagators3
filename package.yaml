@@ -46,6 +46,7 @@ default-extensions:
 - UndecidableInstances
 - QuantifiedConstraints
 - TypeFamilies
+- TupleSections
 
 library:
   source-dirs: src

@@ -99,6 +99,7 @@ iff = addPropagator
 merge :: forall b a m v.
   ( MonadFork m,
     MonadMutate m v,
+    HasScope m,
     StdPtr v,
     HasValue b a,
     HasProps m b a,
