@@ -47,8 +47,8 @@ test2 :: forall v. (v ~ UP) => IO ()
 test2 = flip runReaderT [0] $ do
   v1 <- newLens' @v $ ["a"]
   write v1 ["b"]
-  liftIO $ threadDelay 1000000
-  readRef v1 >>= liftIO . putStrLn . ("contents of v1: "++) . show
+  --liftIO $ threadDelay 1000000
+  --readRef v1 >>= liftIO . putStrLn . ("contents of v1: "++) . show
   iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . show)
   return ()
 {-

@@ -111,7 +111,7 @@ mutateLens_ l p f = mutateLens l p ((,()) . f)
 mutateLens :: (MonadMutate m v, MonadRead m v, HasScope m, Show a) => Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
 mutateLens l (P p) f = do
   success <- MV.mutate p (\val -> case val of
-    (Left v,rest) -> ((Left $ (\v' -> trace ("mutating from "++show v++" to value "++show v') v') $ over l (fst . f) v,rest),
+    (Left v,rest) -> ((Left $ over l (fst . f) v,rest),
                 Just $ snd . f $ v ^. l)
     (Right _,_) -> (val, Nothing))
   case success of

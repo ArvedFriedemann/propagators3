@@ -42,9 +42,7 @@ write :: forall b a m v .
    HasProps m b a,
    Lattice a) =>
   PtrType v b -> a -> m ()
-write adr val = do
-  traceM ("writing "++(show val)++" into somwehere") >> mutateLens idLens adr (\v -> (\v' -> trace ("originally mutating from "++show v++" to value "++show v') v') $ updateVal @_ @a $ set value (v ^. value /\ val) v) >>= \props -> traceShow (length props) $ runProps props
-  readRef adr >>= traceM . (("value after writing "++show val++": ") ++) . show
+write adr val = mutateLens idLens adr (\v -> updateVal @_ @a $ set value (v ^. value /\ val) v) >>= runProps
 
 
 addPropagator :: forall b a m v.
@@ -56,11 +54,10 @@ addPropagator :: forall b a m v.
     HasProps m b a) =>
   PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()
 addPropagator p pred cont = do
-  traceM "Placing a propagator"
   join $ mutateLens idLens p $ \v ->  case pred (v ^. value) of
-      Failed -> (v, traceM "failed" >> return ())
-      Instance -> (v, traceM "shooting initial propagator!" >> cont $ v ^. value)
-      NoInstance -> (traceShow "We're here" $ set props (ContRec pred (readLens value p >>= cont) : (v ^. props)) v, traceM ("no instance on "++ show v) >>return ())
+      Failed -> (v, return ())
+      Instance -> (v, cont $ v ^. value)
+      NoInstance -> (set props (ContRec pred (readLens value p >>= cont) : (v ^. props)) v, return ())
 
 --second collection is the succeeding propagators, first is the failed one that needs to be written back
 notifyPure :: a -> PCollection m a -> (PCollection m a, PCollection m a)
