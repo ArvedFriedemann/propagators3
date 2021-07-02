@@ -122,6 +122,7 @@ merge :: forall b a m v.
     Lattice b) => PtrType v b -> PtrType v b -> m ()
 merge v1 (P v2) = do
   v1' <- deRefRaw v1 --not perfect, but better than always merging with the topmost pointer.
+  --TODO: get the pointer of the current scope!
   unless (v1' == P v2) $ do
     oldOrPtr <- MV.mutate v2 $ \val -> case val of
       (Left v, rest) -> ((Right v1',rest), Left v)
