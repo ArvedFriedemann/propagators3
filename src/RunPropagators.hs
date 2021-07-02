@@ -51,16 +51,6 @@ test2 = flip runReaderT [0] $ do
   --readRef v1 >>= liftIO . putStrLn . ("contents of v1: "++) . show
   iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . show)
   return ()
-{-
-writing ["b"] into somwehere
-((["a","b"],[]),[])
-0
-value after writing ["b"]: (["a"],[])
-contents of v1: (["a"],[])
-Placing a propagator
-no instance on (["a"],[])
-
--}
 
 
 test3 :: forall v. (v ~ UP) => IO ()
