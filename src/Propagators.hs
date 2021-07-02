@@ -29,19 +29,22 @@ class HasProps m p a where
   props :: Lens' p (PCollection m a)
 
 idLens :: Lens' a a
-idLens = lens id const
+idLens = id
 
 write :: forall b a m v .
   (MonadFork m,
-   MonadMutate m v,
+   MonadVar m v,
    HasScope m,
    HasValue b a,
    Show a,
    Show b,
+   HasTop b,
    HasProps m b a,
    Lattice a) =>
   PtrType v b -> a -> m ()
-write adr val = traceM ("writing "++(show val)++" into somwehere") >> mutateLens idLens adr (\v -> traceShowId $ updateVal @_ @a $ set value (v ^. value /\ val) v) >>= \props -> traceShow (length props) $ runProps props
+write adr val = do
+  traceM ("writing "++(show val)++" into somwehere") >> mutateLens idLens adr (\v -> (\v' -> trace ("originally mutating from "++show v++" to value "++show v') v') $ updateVal @_ @a $ set value (v ^. value /\ val) v) >>= \props -> traceShow (length props) $ runProps props
+  readRef adr >>= traceM . (("value after writing "++show val++": ") ++) . show
 
 
 addPropagator :: forall b a m v.
@@ -117,6 +120,7 @@ merge :: forall b a m v.
     StdPtr v,
     HasValue b a,
     HasProps m b a,
+    Show b,
     Lattice b) => PtrType v b -> PtrType v b -> m ()
 merge v1 (P v2) = do
   v1' <- deRefRaw v1 --not perfect, but better than always merging with the topmost pointer.

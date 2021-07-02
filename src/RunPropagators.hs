@@ -2,6 +2,7 @@ module RunPropagators where
 
 import "this" Propagators
 import "this" LensVars
+import "this" CustomVars
 import "containers" Data.Set (Set)
 import qualified "containers" Data.Set as S
 import "lattices" Algebra.Lattice
@@ -12,6 +13,8 @@ import "base" Data.IORef
 import "lens" Control.Lens
 import "transformers" Control.Monad.Trans.Reader
 import "transformers" Control.Monad.Trans.Class
+import "base" Control.Monad.IO.Class
+import "base" Control.Concurrent
 
 type PtrCont m a = (a,PCollection m a)
 
@@ -28,26 +31,39 @@ instance Lattice [a] where
 instance BoundedMeetSemiLattice [a] where
   top = []
 
-newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadVar m v, HasScope m) =>
+newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadVar m v, HasScope m, Show a) =>
   a -> m (PtrType v (PtrCont m a))
 newLens' = newLens value
 
-test :: forall v. (v ~ IORef) => IO ()
-test = flip runReaderT [0] $ do
+test1 :: forall v. (v ~ UP) => IO ()
+test1 = flip runReaderT [0] $ do
   v1 <- newLens' @v ["a"]
   v2 <- newLens' @v []
   merge v1 v2
   iff v2 (\v -> if null v then NoInstance else Instance) (lift . putStrLn . show)
   return ()
 
-test2 :: forall v. (v ~ IORef) => IO ()
+test2 :: forall v. (v ~ UP) => IO ()
 test2 = flip runReaderT [0] $ do
   v1 <- newLens' @v $ ["a"]
   write v1 ["b"]
+  liftIO $ threadDelay 1000000
+  readRef v1 >>= liftIO . putStrLn . ("contents of v1: "++) . show
   iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . show)
   return ()
+{-
+writing ["b"] into somwehere
+((["a","b"],[]),[])
+0
+value after writing ["b"]: (["a"],[])
+contents of v1: (["a"],[])
+Placing a propagator
+no instance on (["a"],[])
 
-test3 :: forall v. (v ~ IORef) => IO ()
+-}
+
+
+test3 :: forall v. (v ~ UP) => IO ()
 test3 = flip runReaderT [0] $ do
   v1 <- newLens' @v ["a"]
   scoped $ do

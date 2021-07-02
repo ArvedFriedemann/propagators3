@@ -15,6 +15,7 @@ import "mtl" Control.Monad.Reader.Class
 import "base" Control.Monad.IO.Class
 import "hashable" Data.Hashable
 import "unique" Control.Concurrent.Unique
+import "base" Debug.Trace
 
 class HasScope m where
   getScope :: m Int
@@ -92,7 +93,7 @@ readRef p = do
 new :: (MonadVar m v, HasScope m, HasTop a) => m (PtrType v a)
 new = MV.new (IntMap.empty) >>= readVarMap
 
-newLens :: (HasTop a, MonadVar m v, HasScope m) => Lens' a b -> b -> m (PtrType v a)
+newLens :: (HasTop a, MonadVar m v, HasScope m, Show a) => Lens' a b -> b -> m (PtrType v a)
 newLens l v = do
   n <- new
   writeLens l n v
@@ -101,23 +102,21 @@ newLens l v = do
 readLens :: (MonadVar m v, HasScope m, HasTop a) => Lens' a b -> PtrType v a -> m b
 readLens l = ((^. l) <$>) . readRef
 
-writeLens :: (MonadMutate m v, MonadRead m v, HasScope m) => Lens' a b -> PtrType v a -> b -> m ()
+writeLens :: (MonadMutate m v, MonadRead m v, HasScope m, Show a) => Lens' a b -> PtrType v a -> b -> m ()
 writeLens l p v = mutateLens_ l p (const v)
 
-mutateLens_ :: (MonadMutate m v, MonadRead m v, HasScope m) => Lens' a b -> PtrType v a -> (b -> b) -> m ()
+mutateLens_ :: (MonadMutate m v, MonadRead m v, HasScope m, Show a) => Lens' a b -> PtrType v a -> (b -> b) -> m ()
 mutateLens_ l p f = mutateLens l p ((,()) . f)
 
-mutateLens :: (MonadMutate m v, MonadRead m v, HasScope m) => Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
-mutateLens l p f = do
-  p' <- deRef p
-  currScp <- getScope
-  success <- MV.mutate p' (\val -> case val of
-    (Left v,rest) -> ((Left $ over l (fst . f) v,rest),
+mutateLens :: (MonadMutate m v, MonadRead m v, HasScope m, Show a) => Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
+mutateLens l (P p) f = do
+  success <- MV.mutate p (\val -> case val of
+    (Left v,rest) -> ((Left $ (\v' -> trace ("mutating from "++show v++" to value "++show v') v') $ over l (fst . f) v,rest),
                 Just $ snd . f $ v ^. l)
     (Right _,_) -> (val, Nothing))
   case success of
     Just v -> return v
-    Nothing -> mutateLens l p f
+    Nothing -> mutateLens l (P p) f
 
 
 
