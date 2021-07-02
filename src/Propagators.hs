@@ -112,12 +112,13 @@ iff = addPropagator
 
 merge :: forall b a m v.
   ( MonadFork m,
-    MonadMutate m v,
+    MonadVar m v,
     HasScope m,
     StdPtr v,
     HasValue b a,
     HasProps m b a,
     Show b,
+    HasTop b,
     Lattice b) => PtrType v b -> PtrType v b -> m ()
 merge v1 (P v2) = do
   v1' <- deRefRaw v1 --not perfect, but better than always merging with the topmost pointer.

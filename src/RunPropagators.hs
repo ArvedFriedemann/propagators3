@@ -56,10 +56,13 @@ test2 = flip runReaderT [0] $ do
 test3 :: forall v. (v ~ UP) => IO ()
 test3 = flip runReaderT [0] $ do
   v1 <- newLens' @v ["a"]
+  getScope >>= liftIO . putStrLn . ("origId: "++) . show
   scoped $ do
+    getScope >>= liftIO . putStrLn . ("scopeId: "++) . show
     write v1 ["b"]
     iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . (++" in scope") . show)
-  iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . show) --this should not print!
+  getScope >>= liftIO . putStrLn . ("afterScopeOrigId: "++) . show
+  iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . (++" (this should not be printed!)") .show) --this should not print!
   return ()
 
 {-

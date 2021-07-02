@@ -79,16 +79,21 @@ readVarMap pm = do
       nv <- P <$> MV.new (Left top, (currScp,pm))
       MV.mutate pm (insertNoReplace currScp nv)
 
+getCurrScpPtr :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m (PtrType v a)
+getCurrScpPtr (P p) = do
+  currScp <- getScope
+  (_,(scp,scpmp)) <- MV.read p
+  if currScp == scp
+  then return (P p)
+  else readVarMap scpmp
+
 readRef :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m a
 readRef p = do
-  currScp <- getScope
-  p' <- deRef p
+  (P p') <- getCurrScpPtr p
   (val,(scp,scpmp)) <- MV.read p'
-  if currScp == scp
-  then case val of
+  case val of
     Left v -> return v
-    Right p -> readRef p
-  else readVarMap scpmp >>= readRef
+    Right p'' -> readRef p''
 
 new :: (MonadVar m v, HasScope m, HasTop a) => m (PtrType v a)
 new = MV.new (IntMap.empty) >>= readVarMap
@@ -102,21 +107,22 @@ newLens l v = do
 readLens :: (MonadVar m v, HasScope m, HasTop a) => Lens' a b -> PtrType v a -> m b
 readLens l = ((^. l) <$>) . readRef
 
-writeLens :: (MonadMutate m v, MonadRead m v, HasScope m, Show a) => Lens' a b -> PtrType v a -> b -> m ()
+writeLens :: (MonadVar m v, HasScope m, HasTop a, Show a) => Lens' a b -> PtrType v a -> b -> m ()
 writeLens l p v = mutateLens_ l p (const v)
 
-mutateLens_ :: (MonadMutate m v, MonadRead m v, HasScope m, Show a) => Lens' a b -> PtrType v a -> (b -> b) -> m ()
+mutateLens_ :: (MonadVar m v, HasScope m, HasTop a, Show a) => Lens' a b -> PtrType v a -> (b -> b) -> m ()
 mutateLens_ l p f = mutateLens l p ((,()) . f)
 
-mutateLens :: (MonadMutate m v, MonadRead m v, HasScope m, Show a) => Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
-mutateLens l (P p) f = do
-  success <- MV.mutate p (\val -> case val of
+mutateLens :: (MonadVar m v, HasScope m, HasTop a, Show a) => Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
+mutateLens l p f = do
+  (P p') <- getCurrScpPtr p
+  success <- MV.mutate p' (\val -> case val of
     (Left v,rest) -> ((Left $ over l (fst . f) v,rest),
                 Just $ snd . f $ v ^. l)
     (Right _,_) -> (val, Nothing))
   case success of
     Just v -> return v
-    Nothing -> mutateLens l (P p) f
+    Nothing -> mutateLens l (P p') f
 
 
 
