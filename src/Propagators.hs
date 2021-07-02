@@ -109,15 +109,15 @@ merge :: forall b a m v.
     HasValue b a,
     HasProps m b a,
     Lattice b) => PtrType v b -> PtrType v b -> m ()
-merge v1' v2' = do
-  v2r <- deRefRaw v2'
-  v1r <- deRefRaw v1'
-  --pointers cannot be merged with themselves for loop prevention
-  unless (v1r == v2r) $ do
-    v2 <- deRef v2r
-    --TODO: deRef here not threadsafe! (possibly)
-    oldCont <- MV.mutate v2 $ \(v,rest) -> ((Right v1',rest),v)
-    mutateLens idLens v1' (\v -> updateVal @_ @a $ v /\ oldCont) >>= runProps
+merge v1 (P v2) = do
+  v1' <- deRefRaw v1 --not perfect, but better than always merging with the topmost pointer.
+  unless (v1' == P v2) $ do
+    oldOrPtr <- MV.mutate v2 $ \val -> case val of
+      (Left v, rest) -> ((Right v1',rest), Left v)
+      (Right p, rest) -> ((Right p, rest), Right p)
+    case oldOrPtr of
+      (Left oldCont) -> mutateLens idLens v1' (\v -> updateVal @_ @a $ v /\ oldCont) >>= runProps
+      (Right p) -> merge @b @a v1' p
 
 
 
