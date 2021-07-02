@@ -10,6 +10,8 @@ import qualified "monad-var" MonadVar.Classes as MV
 import "monad-var" MonadVar.Instances.IORef
 import "base" Data.IORef
 import "lens" Control.Lens
+import "transformers" Control.Monad.Trans.Reader
+import "transformers" Control.Monad.Trans.Class
 
 type PtrCont m a = (a,PCollection m a)
 
@@ -31,11 +33,11 @@ newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadVar m v, HasScope m) 
 newLens' = newLens value
 
 test :: forall v. (v ~ IORef) => IO ()
-test = do
+test = flip runReaderT [0] $ do
   v1 <- newLens' @v ["a"]
   v2 <- newLens' @v []
   merge v1 v2
-  iff v2 (\v -> if null v then NoInstance else Instance) (putStrLn . show)
+  iff v2 (\v -> if null v then NoInstance else Instance) (lift . putStrLn . show)
   return ()
 
 {-

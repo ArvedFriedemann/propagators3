@@ -28,6 +28,7 @@ dependencies:
 - monad-parallel
 - lens
 - either
+- transformers
 
 default-extensions:
 - PackageImports
