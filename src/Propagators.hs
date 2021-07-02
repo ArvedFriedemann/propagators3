@@ -10,6 +10,7 @@ import qualified "containers" Data.Set as S
 --import "mtl" Control.Monad.Except
 import "base" Data.List
 import "base" Control.Monad
+import "base" Debug.Trace
 import "monad-parallel" Control.Monad.Parallel (MonadFork, forkExec)
 
 import "lens" Control.Lens.Lens
@@ -35,10 +36,12 @@ write :: forall b a m v .
    MonadMutate m v,
    HasScope m,
    HasValue b a,
+   Show a,
+   Show b,
    HasProps m b a,
    Lattice a) =>
   PtrType v b -> a -> m ()
-write adr val = mutateLens idLens adr (\v -> updateVal @_ @a $ set value (v ^. value /\ val) v) >>= runProps
+write adr val = traceM ("writing "++(show val)++" into somwehere") >> mutateLens idLens adr (\v -> traceShowId $ updateVal @_ @a $ set value (v ^. value /\ val) v) >>= \props -> traceShow (length props) $ runProps props
 
 
 addPropagator :: forall b a m v.
@@ -46,13 +49,15 @@ addPropagator :: forall b a m v.
     HasScope m,
     HasTop b,
     HasValue b a,
+    Show b,
     HasProps m b a) =>
   PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()
-addPropagator p pred cont =
+addPropagator p pred cont = do
+  traceM "Placing a propagator"
   join $ mutateLens idLens p $ \v ->  case pred (v ^. value) of
-      Failed -> (v, return ())
-      Instance -> (v, cont $ v ^. value)
-      NoInstance -> (set props (ContRec pred (readLens value p >>= cont) : (v ^. props)) v, return ())
+      Failed -> (v, traceM "failed" >> return ())
+      Instance -> (v, traceM "shooting initial propagator!" >> cont $ v ^. value)
+      NoInstance -> (traceShow "We're here" $ set props (ContRec pred (readLens value p >>= cont) : (v ^. props)) v, traceM ("no instance on "++ show v) >>return ())
 
 --second collection is the succeeding propagators, first is the failed one that needs to be written back
 notifyPure :: a -> PCollection m a -> (PCollection m a, PCollection m a)
@@ -75,6 +80,9 @@ data ContRec m a = ContRec {
   crcont :: m ()
 }
 
+instance Show (ContRec m a) where
+  show _ = "~ContRec~"
+
 
 
 type PCollection m a = [ContRec m a]
@@ -91,6 +99,7 @@ iff :: forall b a m v.
   ( MonadVar m v,
     HasScope m,
     HasTop b,
+    Show b,
     HasValue b a,
     HasProps m b a) =>
   PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()

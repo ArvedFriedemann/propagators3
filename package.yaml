@@ -29,6 +29,8 @@ dependencies:
 - lens
 - either
 - transformers
+- hashable
+- unique
 
 default-extensions:
 - PackageImports

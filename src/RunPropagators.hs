@@ -40,6 +40,22 @@ test = flip runReaderT [0] $ do
   iff v2 (\v -> if null v then NoInstance else Instance) (lift . putStrLn . show)
   return ()
 
+test2 :: forall v. (v ~ IORef) => IO ()
+test2 = flip runReaderT [0] $ do
+  v1 <- newLens' @v $ ["a"]
+  write v1 ["b"]
+  iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . show)
+  return ()
+
+test3 :: forall v. (v ~ IORef) => IO ()
+test3 = flip runReaderT [0] $ do
+  v1 <- newLens' @v ["a"]
+  scoped $ do
+    write v1 ["b"]
+    iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . (++" in scope") . show)
+  iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . show) --this should not print!
+  return ()
+
 {-
 
 X,Y variables

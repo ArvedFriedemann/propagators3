@@ -12,12 +12,25 @@ import "either" Data.Either.Combinators
 import "containers" Data.IntMap.Strict (IntMap, (!), (!?))
 import qualified "containers" Data.IntMap.Strict as IntMap
 import "mtl" Control.Monad.Reader.Class
+import "base" Control.Monad.IO.Class
+import "hashable" Data.Hashable
+import "unique" Control.Concurrent.Unique
 
 class HasScope m where
   getScope :: m Int
+  scoped :: m a -> m a
+  parScoped :: m a -> m a
 
-instance (MonadReader [Int] m)=> HasScope m where
+instance (MonadReader [Int] m, MonadIO m)=> HasScope m where
   getScope = head <$> ask
+  scoped m = do
+    u <- hash <$> (liftIO newUnique)
+    local (u :) m
+  parScoped m = do
+    s <- ask
+    case s of
+      (_ : _) -> local tail m
+      _ -> error "calling parScoped on Parent!"
 
 class HasTop a where
   top :: a
