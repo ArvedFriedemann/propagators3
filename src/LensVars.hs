@@ -53,13 +53,14 @@ instance (forall a. Eq (v a)) => Eq (PtrType v a) where
 unpackPtrType :: PtrType v a -> v (PtrConts v a)
 unpackPtrType (P p) = p
 
-deRefRaw :: (MonadRead m v) => PtrType v a -> m (PtrType v a)
-deRefRaw (P p) = MV.read p >>= \v -> case v of
-  (Left _,_) -> return (P p)
-  (Right p',_) -> deRefRaw p'
+deRefRaw :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m (PtrType v a)
+deRefRaw p'' = getCurrScpPtr p'' >>= deRefRaw'
+  where deRefRaw' (P p) = MV.read p >>= \v -> case v of
+          (Left _,_) -> return (P p)
+          (Right p',_) -> deRefRaw' p'
 
-deRef :: (MonadRead m v) => PtrType v a -> m (v (PtrConts v a))
-deRef = (unpackPtrType <$>) . deRefRaw
+deRef :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m (v (PtrConts v a))
+deRef p = getCurrScpPtr p >>= (unpackPtrType <$>) . deRefRaw
 
 insertNoReplace :: IntMap.Key -> a -> IntMap a -> (IntMap a, a)
 insertNoReplace k v mp = let
@@ -88,12 +89,12 @@ getCurrScpPtr (P p) = do
   else readVarMap scpmp
 
 readRef :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m a
-readRef p = do
-  (P p') <- getCurrScpPtr p
-  (val,(scp,scpmp)) <- MV.read p'
-  case val of
-    Left v -> return v
-    Right p'' -> readRef p''
+readRef p = getCurrScpPtr p >>= readRef'
+  where readRef' (P p') = do
+          (val,(scp,scpmp)) <- MV.read p'
+          case val of
+            Left v -> return v
+            Right p'' -> readRef' p''
 
 new :: (MonadVar m v, HasScope m, HasTop a) => m (PtrType v a)
 new = MV.new (IntMap.empty) >>= readVarMap
@@ -113,16 +114,21 @@ writeLens l p v = mutateLens_ l p (const v)
 mutateLens_ :: (MonadVar m v, HasScope m, HasTop a, Show a) => Lens' a b -> PtrType v a -> (b -> b) -> m ()
 mutateLens_ l p f = mutateLens l p ((,()) . f)
 
-mutateLens :: (MonadVar m v, HasScope m, HasTop a, Show a) => Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
-mutateLens l p f = do
-  (P p') <- getCurrScpPtr p
-  success <- MV.mutate p' (\val -> case val of
-    (Left v,rest) -> ((Left $ over l (fst . f) v,rest),
-                Just $ snd . f $ v ^. l)
-    (Right _,_) -> (val, Nothing))
-  case success of
-    Just v -> return v
-    Nothing -> mutateLens l (P p') f
+mutateLens :: forall m v a b s.
+  ( MonadVar m v,
+    HasScope m,
+    HasTop a,
+    Show a) => Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
+mutateLens l' p f' = getCurrScpPtr p >>= \p' -> mutateLens' l' p' f'
+  where mutateLens' :: Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
+        mutateLens' l (P p') f = do
+          success <- MV.mutate p' (\val -> case val of
+            (Left v,rest) -> ((Left $ over l (fst . f) v,rest),
+                        Just $ snd . f $ v ^. l)
+            (Right _,_) -> (val, Nothing))
+          case success of
+            Just v -> return v
+            Nothing -> mutateLens' l (P p') f
 
 
 
