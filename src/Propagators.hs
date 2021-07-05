@@ -37,12 +37,13 @@ write :: forall b a m v .
    HasScope m,
    HasValue b a,
    Show a,
+   Eq a,
    Show b,
    HasTop b,
    HasProps m b a,
    Lattice a) =>
   PtrType v b -> a -> m ()
-write adr val = mutateLens idLens adr (\v -> updateVal @_ @a $ set value (v ^. value /\ val) v) >>= runProps
+write adr val = mutateLens idLens adr (\v -> updateVal @_ @a v $ set value (v ^. value /\ val) v) >>= runProps
 
 
 addPropagator :: forall b a m v.
@@ -66,9 +67,18 @@ notifyPure val props = (inst, noInst)
 
 updateVal :: forall b a m.
   (HasValue b a,
+   HasProps m b a,
+   Eq a) =>
+   b -> b -> (b, PCollection m a)
+updateVal old new
+  | (old ^. value :: a) == (new ^. value :: a) = (old, [])
+  | otherwise = updateVal' new
+
+updateVal' :: forall b a m.
+  (HasValue b a,
    HasProps m b a) =>
    b -> (b, PCollection m a)
-updateVal mt = (set props nosuccprops mt, succprops)
+updateVal' mt = (set props nosuccprops mt, succprops)
   where --TODO: equality check with old value?
     (nosuccprops, succprops) = notifyPure (mt ^. value) (mt ^. props)
 
@@ -118,6 +128,7 @@ merge :: forall b a m v.
     HasValue b a,
     HasProps m b a,
     Show b,
+    Eq a,
     HasTop b,
     Lattice b) => PtrType v b -> PtrType v b -> m ()
 merge v1 (P v2) = do
@@ -128,7 +139,7 @@ merge v1 (P v2) = do
       (Left v, rest) -> ((Right v1',rest), Left v)
       (Right p, rest) -> ((Right p, rest), Right p)
     case oldOrPtr of
-      (Left oldCont) -> mutateLens idLens v1' (\v -> updateVal @_ @a $ v /\ oldCont) >>= runProps
+      (Left oldCont) -> mutateLens idLens v1' (\v -> updateVal @_ @a oldCont $ v /\ oldCont) >>= runProps
       (Right p) -> merge @b @a v1' p
 
 
