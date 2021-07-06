@@ -97,13 +97,15 @@ instance Show (ContRec m a) where
 
 type PCollection m a = [ContRec m a]
 
-data Instantiated = Failed | NoInstance | Instance
+data Instantiated = Failed | NoInstance | Instance | ContinuousInstance
   deriving (Show, Eq, Ord)
 
 splitInstantiated :: [a] -> (a -> Instantiated) -> ([a],[a],[a])
 splitInstantiated lst f = (filter ((== Failed) . f) lst
-                          ,filter ((== NoInstance) . f) lst
-                          ,filter ((== Instance) . f) lst)
+                          ,filter ((\x -> x == NoInstance
+                                    || x == ContinuousInstance) . f) lst
+                          ,filter ((\x -> x == Instance 
+                                    || x == ContinuousInstance) . f) lst)
 
 iff :: forall b a m v.
   ( MonadVar m v,

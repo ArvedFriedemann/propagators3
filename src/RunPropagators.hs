@@ -106,8 +106,9 @@ propagators:
   3 -> ...
 
 
-
-
+a <- m 1
+b <- m 2
+getting constraint: m (a -> ... -> z -> m k)
 
 
 

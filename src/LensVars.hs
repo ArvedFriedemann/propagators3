@@ -19,7 +19,9 @@ import "base" Debug.Trace
 
 class HasScope m where
   getScope :: m Int
+  getScopePath :: m ScopePath
   scoped :: m a -> m a
+  scoped' :: Int -> m a -> m a
   parScoped :: m a -> m a
 
 instance (MonadReader [Int] m, MonadIO m)=> HasScope m where
@@ -42,9 +44,10 @@ instance (Lat.BoundedMeetSemiLattice a) => HasTop a where
 type MonadVar m v = (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m v)
 
 type StdPtr v = (forall a. Eq (v a))
+type ScopePath = [Int]
 
 type Var v a = v (IntMap (PtrType v a))
-type PtrConts v a = (Either a (PtrType v a), (Int, Var v a))
+type PtrConts v a = (Either a (PtrType v a), (ScopePath, Var v a))
 newtype PtrType v a = P (v (PtrConts v a))
 
 instance (forall a. Eq (v a)) => Eq (PtrType v a) where
@@ -70,23 +73,61 @@ insertNoReplace k v mp = let
     Just x -> (mp',x)
 
 readVarMap :: (HasScope m, MonadVar m v, HasTop a) => Var v a -> m (PtrType v a)
-readVarMap pm = do
+readVarMap = (fst <$>) . readVarMap'
+
+--returns (resulting ptr, paths that need upward propagation)
+readVarMapScope :: (HasScope m, MonadVar m v, HasTop a) => ScopePath -> Var v a -> m (PtrType v a, [ScopePath])
+readVarMapScope currScp pm = do
   mp <- MV.read pm
-  currScp <- getScope
-  case mp !? currScp of
+  case mp !? head currScp of
     Just v -> return v
     Nothing -> do
-      --TODO: Need to create upwards propagators.
       nv <- P <$> MV.new (Left top, (currScp,pm))
-      MV.mutate pm (insertNoReplace currScp nv)
+      MV.mutate pm (\mp ->
+        let (mp',nptr) = insertNoReplace currScp nv
+        in
+        if nptr == nv
+        then (mp', (nptr,[]))
+        else let {
+          getHighestParent [] = Nothing
+          getHighestParent (x : xs)
+            | x `IntMap.member` mp = Just [x]
+            | otherwise = (x :) <$> getHighestParent xs
+          highestParent = getHighestParent currScp
+        }
+        in (np', (nptr, highestParent ++ childpaths))
+        )
+
+--returns true if new value was created
+readVarMap' :: (HasScope m, MonadVar m v, HasTop a) => Var v a -> m (PtrType v a, Bool)
+readVarMap' pm = getScopePath >>= flip readVarMapScope pm
+
 
 getCurrScpPtr :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m (PtrType v a)
 getCurrScpPtr (P p) = do
-  currScp <- getScope
+  currScp <- getScopePath
   (_,(scp,scpmp)) <- MV.read p
-  if currScp == scp
+  if head currScp == head scp
   then return (P p)
-  else readVarMap scpmp
+  else do
+    (p', isNew) <- readVarMap' scpmp
+    if not isNew
+    then return p'
+    else do
+      {-}
+      --TODO: upwards propagators
+      let (csp, spp, pathToCommonScope) = longestReverseCommonTail currScope scp
+      in readVarMap (head pathToCommonScope) scpmp >>= moveScope csp
+      where
+        moveScope [] l = return l
+        moveScope (x : xs) l = readVarMap x scpmp >>= placeProp >>= moveScope xs
+        -}
+
+{-
+
+
+parScoped $ iff nv (const ContinuousInstance) (\v -> scoped' currScp $ write v nv )
+-}
 
 readRef :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m a
 readRef p = getCurrScpPtr p >>= readRef'
@@ -130,8 +171,14 @@ mutateLens l' p f' = getCurrScpPtr p >>= \p' -> mutateLens' l' p' f'
             Just v -> return v
             Nothing -> mutateLens' l (P p') f
 
-
-
+longestReverseCommonTail :: (Eq a) => [a] -> [a] -> ([a],[a],[a])
+longestReverseCommonTail p1 p2 = lct (reverse p1) (reverse p2)
+  where lct [] x  = ([],x,[])
+        lct x  [] = (x,[],[])
+        lct a@(x:xs) b@(y:ys)
+          | x != y = (a,b,[])
+          | otherwise = let (l, r, t) = lct xs ys
+                        in (l, r, x:t)
 
 
 --
