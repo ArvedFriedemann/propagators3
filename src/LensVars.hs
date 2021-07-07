@@ -16,6 +16,8 @@ import "base" Control.Monad.IO.Class
 import "hashable" Data.Hashable
 import "unique" Control.Concurrent.Unique
 import "base" Debug.Trace
+import "base" Data.List
+import "base" Data.Function
 
 class HasScope m where
   getScope :: m Int
@@ -46,7 +48,12 @@ type MonadVar m v = (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m 
 type StdPtr v = (forall a. Eq (v a))
 type ScopePath = [Int]
 
-type Var v a = v (IntMap (PtrType v a))
+data ScopedPtr v a = ScopedPtr {
+  s_ptr :: PtrType v a,
+  s_scp :: ScopePath
+}
+
+type Var v a = v (IntMap (ScopedPtr v a, [ScopedPtr v a]))
 type PtrConts v a = (Either a (PtrType v a), (ScopePath, Var v a))
 newtype PtrType v a = P (v (PtrConts v a))
 
@@ -73,34 +80,51 @@ insertNoReplace k v mp = let
     Just x -> (mp',x)
 
 readVarMap :: (HasScope m, MonadVar m v, HasTop a) => Var v a -> m (PtrType v a)
-readVarMap = (fst <$>) . readVarMap'
+readVarMap mp = getScopePath >>= \sp -> readVarMapScope sp mp
+
+
+readVarMapScope :: (HasScope m, MonadVar m v, HasTop a) => ScopePath -> Var v a -> m (PtrType v a)
+readVarMapScope sp mp = do
+  (nptr,eqs) <- readVarMapScope' sp mp
+  --TODO: process the eqs! WARNING!
+  return nptr
 
 --returns (resulting ptr, paths that need upward propagation)
-readVarMapScope :: (HasScope m, MonadVar m v, HasTop a) => ScopePath -> Var v a -> m (PtrType v a, [ScopePath])
-readVarMapScope currScp pm = do
+---WARNING: assuming that the directional equalities returned are eventually placed!
+readVarMapScope' :: (HasScope m, MonadVar m v, HasTop a) => ScopePath -> Var v a -> m (PtrType v a, [(PtrType v a, PtrType v a)])
+readVarMapScope' currScp pm = do
   mp <- MV.read pm
   case mp !? head currScp of
-    Just v -> return v
+    Just (s_ptr . fst -> v) -> return (v,[])
     Nothing -> do
       nv <- P <$> MV.new (Left top, (currScp,pm))
       MV.mutate pm (\mp ->
-        let (mp',nptr) = insertNoReplace currScp nv
-        in
-        if nptr == nv
-        then (mp', (nptr,[]))
-        else let {
-          getHighestParent [] = Nothing
-          getHighestParent (x : xs)
-            | x `IntMap.member` mp = Just [x]
-            | otherwise = (x :) <$> getHighestParent xs
-          highestParent = getHighestParent currScp
-        }
-        in (np', (nptr, highestParent ++ childpaths))
+        let hasPtr = IntMap.member (head currScp) mp
+        in if hasPtr
+        then (mp, (s_ptr $ fst $ mp ! (head currScp), []))
+        else let
+          rawParents = flip map (IntMap.toList mp) (\(i,(mptr,_)) ->
+            (i,longestReverseCommonTail currScp (s_scp mptr)))
+          parents = filter (\(_,(_, ptrPart, _)) -> null ptrPart) rawParents
+          highestParentScp = fst <$>
+            if null parents
+            then Nothing -- no parent
+            else Just $ maximumBy (compare `on` (\(_,(_,_,tl))-> length tl)) parents
+          (mp',nextEqualities) = case highestParentScp of
+            Just hpc -> let
+                          (hpcPtr, hpcChildren) = mp ! hpc
+                          (currScpChildren,nonchildren) = partition (\c -> currScp `isParentOf` (s_scp c)) hpcChildren
+                        in --two map adjusts (correcting the old parent, adding the new pointer)
+                          (IntMap.insert (head currScp) (ScopedPtr nv currScp, currScpChildren)
+                            (IntMap.adjust (\(v,clds) -> (v,(ScopedPtr nv currScp) : nonchildren)) hpc mp),
+                          --giving the list of equalities
+                          (s_ptr hpcPtr,nv) : (((nv,) . s_ptr) <$> currScpChildren))
+            Nothing -> let
+                          children = fst <$> flip filter (IntMap.elems mp) (\(sp,_) -> currScp `isParentOf` (s_scp sp))
+                       in (IntMap.insert (head currScp) (ScopedPtr nv currScp, children) mp,
+                          ((nv,) . s_ptr) <$> children)
+             in (mp',(nv,nextEqualities))
         )
-
---returns true if new value was created
-readVarMap' :: (HasScope m, MonadVar m v, HasTop a) => Var v a -> m (PtrType v a, Bool)
-readVarMap' pm = getScopePath >>= flip readVarMapScope pm
 
 
 getCurrScpPtr :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m (PtrType v a)
@@ -109,19 +133,7 @@ getCurrScpPtr (P p) = do
   (_,(scp,scpmp)) <- MV.read p
   if head currScp == head scp
   then return (P p)
-  else do
-    (p', isNew) <- readVarMap' scpmp
-    if not isNew
-    then return p'
-    else do
-      {-}
-      --TODO: upwards propagators
-      let (csp, spp, pathToCommonScope) = longestReverseCommonTail currScope scp
-      in readVarMap (head pathToCommonScope) scpmp >>= moveScope csp
-      where
-        moveScope [] l = return l
-        moveScope (x : xs) l = readVarMap x scpmp >>= placeProp >>= moveScope xs
-        -}
+  else readVarMapScope currScp scpmp
 
 {-
 
@@ -176,9 +188,12 @@ longestReverseCommonTail p1 p2 = lct (reverse p1) (reverse p2)
   where lct [] x  = ([],x,[])
         lct x  [] = (x,[],[])
         lct a@(x:xs) b@(y:ys)
-          | x != y = (a,b,[])
+          | x /= y = (a,b,[])
           | otherwise = let (l, r, t) = lct xs ys
                         in (l, r, x:t)
 
+isParentOf :: (Eq a) => [a] -> [a] -> Bool
+isParentOf p1 p2 = null p1part
+  where (p1part,_,_) = longestReverseCommonTail p1 p2
 
 --
