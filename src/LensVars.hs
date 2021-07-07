@@ -18,6 +18,7 @@ import "unique" Control.Concurrent.Unique
 import "base" Debug.Trace
 import "base" Data.List
 import "base" Data.Function
+import "base" Control.Monad
 
 class HasScope m where
   getScope :: m Int
@@ -87,7 +88,7 @@ readVarMap mp = getScopePath >>= \sp -> readVarMapScope sp mp
 readVarMapScope :: (HasScope m, MonadVar m v, HasTop a) => ScopePath -> Var v a -> m (PtrType v a)
 readVarMapScope sp mp = do
   (nptr,eqs) <- readVarMapScope' sp mp
-  --TODO: process the eqs! WARNING!
+  forM eqs (\(a,b) -> dirEqProp' a b)
   return nptr
 
 --returns (resulting ptr, paths that need upward propagation)
