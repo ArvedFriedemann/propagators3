@@ -43,7 +43,21 @@ write :: forall b a m v .
    HasProps m b a,
    Lattice a) =>
   PtrType v b -> a -> m ()
-write adr val = mutateLens idLens adr (\v -> updateVal @_ @a v $ set value (v ^. value /\ val) v) >>= runProps
+write adr' val = getCurrScpPtr adr' >>= \adr -> write' adr val
+
+write' :: forall b a m v .
+  (MonadFork m,
+   MonadVar m v,
+   HasScope m,
+   HasValue b a,
+   Show a,
+   Eq a,
+   Show b,
+   HasTop b,
+   HasProps m b a,
+   Lattice a) =>
+  PtrType v b -> a -> m ()
+write' adr val = mutateLens' idLens adr (\v -> updateVal @_ @a v $ set value (v ^. value /\ val) v) >>= runProps
 
 
 addPropagator :: forall b a m v.
@@ -54,11 +68,22 @@ addPropagator :: forall b a m v.
     Show b,
     HasProps m b a) =>
   PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()
-addPropagator p pred cont = do
-  join $ mutateLens idLens p $ \v ->  case pred (v ^. value) of
+addPropagator p pred cont = getCurrScpPtr p >>= \p' -> addPropagator' p' pred cont
+
+addPropagator' :: forall b a m v.
+  ( MonadVar m v,
+    HasScope m,
+    HasTop b,
+    HasValue b a,
+    Show b,
+    HasProps m b a) =>
+  PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()
+addPropagator' p pred cont = do
+  join $ mutateLens' sp idLens p $ \v ->  case pred (v ^. value) of
       Failed -> (v, return ())
       Instance -> (v, cont $ v ^. value)
       NoInstance -> (set props (ContRec pred (readLens value p >>= cont) : (v ^. props)) v, return ())
+
 
 --second collection is the succeeding propagators, first is the failed one that needs to be written back
 notifyPure :: a -> PCollection m a -> (PCollection m a, PCollection m a)
@@ -104,7 +129,7 @@ splitInstantiated :: [a] -> (a -> Instantiated) -> ([a],[a],[a])
 splitInstantiated lst f = (filter ((== Failed) . f) lst
                           ,filter ((\x -> x == NoInstance
                                     || x == ContinuousInstance) . f) lst
-                          ,filter ((\x -> x == Instance 
+                          ,filter ((\x -> x == Instance
                                     || x == ContinuousInstance) . f) lst)
 
 iff :: forall b a m v.
@@ -143,6 +168,19 @@ merge v1 (P v2) = do
     case oldOrPtr of
       (Left oldCont) -> mutateLens idLens v1' (\v -> updateVal @_ @a oldCont $ v /\ oldCont) >>= runProps
       (Right p) -> merge @b @a v1' p
+
+
+-----------------------------------
+--Pointer merging
+-----------------------------------
+dirEqProp' :: forall b a m v.
+  ( MonadVar m v,
+    HasScope m,
+    HasTop b,
+    Show b,
+    HasValue b a,
+    HasProps m b a) => PtrType v a -> PtrType v a -> m ()
+dirEqProp' p1 p2 = addPropagator' p1 (const ContinuousInstance) (\v -> write' p2 v)
 
 
 

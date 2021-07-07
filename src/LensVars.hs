@@ -129,8 +129,10 @@ readVarMapScope' currScp pm = do
 
 
 getCurrScpPtr :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m (PtrType v a)
-getCurrScpPtr (P p) = do
-  currScp <- getScopePath
+getCurrScpPtr p = getScopePath >>= flip getScpPtr p
+
+getScpPtr :: (MonadVar m v, HasScope m, HasTop a) => ScopePath -> PtrType v a -> m (PtrType v a)
+getScpPtr currScp (P p) = do
   (_,(scp,scpmp)) <- MV.read p
   if head currScp == head scp
   then return (P p)
@@ -174,6 +176,13 @@ mutateLens :: forall m v a b s.
     HasTop a,
     Show a) => Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
 mutateLens l' p f' = getCurrScpPtr p >>= \p' -> mutateLens' l' p' f'
+
+mutateLensIn :: forall m v a b s.
+  ( MonadVar m v,
+    HasScope m,
+    HasTop a,
+    Show a) => ScopePath -> Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
+mutateLensIn sp l' p f' = getScpPtr sp p >>= \p' -> mutateLens' l' p' f'
 
 mutateLens' :: forall m v a b s.
   ( MonadVar m v,
