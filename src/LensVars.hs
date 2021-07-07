@@ -174,15 +174,21 @@ mutateLens :: forall m v a b s.
     HasTop a,
     Show a) => Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
 mutateLens l' p f' = getCurrScpPtr p >>= \p' -> mutateLens' l' p' f'
-  where mutateLens' :: Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
-        mutateLens' l (P p') f = do
-          success <- MV.mutate p' (\val -> case val of
-            (Left v,rest) -> ((Left $ over l (fst . f) v,rest),
-                        Just $ snd . f $ v ^. l)
-            (Right _,_) -> (val, Nothing))
-          case success of
-            Just v -> return v
-            Nothing -> mutateLens' l (P p') f
+
+mutateLens' :: forall m v a b s.
+  ( MonadVar m v,
+    HasScope m,
+    HasTop a,
+    Show a) => Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
+mutateLens' l (P p') f = do
+  success <- MV.mutate p' (\val -> case val of
+    (Left v,rest) -> ((Left $ over l (fst . f) v,rest),
+                Just $ snd . f $ v ^. l)
+    (Right _,_) -> (val, Nothing))
+  case success of
+    Just v -> return v
+    Nothing -> mutateLens' l (P p') f
+
 
 longestReverseCommonTail :: (Eq a) => [a] -> [a] -> ([a],[a],[a])
 longestReverseCommonTail p1 p2 = lct (reverse p1) (reverse p2)
