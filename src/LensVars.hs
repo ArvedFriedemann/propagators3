@@ -28,6 +28,7 @@ class HasScope m where
 
 instance (MonadReader [Int] m, MonadIO m)=> HasScope m where
   getScope = head <$> ask
+  getScopePath = ask
   scoped m = do
     u <- hash <$> (liftIO newUnique)
     local (u :) m
