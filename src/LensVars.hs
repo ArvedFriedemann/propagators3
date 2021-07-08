@@ -12,6 +12,7 @@ import "either" Data.Either.Combinators
 import "containers" Data.IntMap.Strict (IntMap, (!), (!?))
 import qualified "containers" Data.IntMap.Strict as IntMap
 import "mtl" Control.Monad.Reader.Class
+import "mtl" Control.Monad.State
 import "base" Control.Monad.IO.Class
 import "hashable" Data.Hashable
 import "unique" Control.Concurrent.Unique
@@ -20,24 +21,50 @@ import "base" Data.List
 import "base" Data.Function
 import "base" Control.Monad
 
-class HasScope m where
+class PropUtil m v | m -> v where
   getScope :: m Int
   getScopePath :: m ScopePath
   scoped :: m a -> m a
   scoped' :: Int -> m a -> m a
   parScoped :: m a -> m a
+  pushAction :: Action v -> m ()
+  flushActions :: m [Action v]
 
-instance (MonadReader [Int] m, MonadIO m)=> HasScope m where
-  getScope = head <$> ask
-  getScopePath = ask
+data Action v = forall a. Action (PtrType v a, PtrType v a)
+
+class ActionBuffer m v where
+
+
+data PropState v =
+  PS { scopes :: [Int], actions :: [Action v] }
+
+-- type RWST r w s m a
+-- is a reader with env r, writer with w, state with s, inner monad m
+
+instance (MonadIO m) => PropUtil (StateT (PropState v) m) v where
+  getScope = gets (head . scopes)
+  getScopePath = gets scopes
   scoped m = do
     u <- hash <$> (liftIO newUnique)
-    local (u :) m
+    s <- get
+    modify (\s -> s{scopes = u : scopes s})
+    r <- m
+    put s
+    return r
   parScoped m = do
-    s <- ask
-    case s of
-      (_ : _) -> local tail m
+    s <- get
+    case scopes s of
+      (_ : xs) -> do
+        modify (\s -> s{scopes = xs})
+        r <- m
+        put s
+        return r
       _ -> error "calling parScoped on Parent!"
+  pushAction a = modify (\s -> s{actions = a : actions s})
+  flushActions = do
+    r <- gets actions
+    modify (\s -> s{actions = []})
+    return r
 
 class HasTop a where
   top :: a
@@ -65,13 +92,13 @@ instance (forall a. Eq (v a)) => Eq (PtrType v a) where
 unpackPtrType :: PtrType v a -> v (PtrConts v a)
 unpackPtrType (P p) = p
 
-deRefRaw :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m (PtrType v a)
+deRefRaw :: (MonadVar m v, PropUtil m v, HasTop a) => PtrType v a -> m (PtrType v a)
 deRefRaw p'' = getCurrScpPtr p'' >>= deRefRaw'
   where deRefRaw' (P p) = MV.read p >>= \v -> case v of
           (Left _,_) -> return (P p)
           (Right p',_) -> deRefRaw' p'
 
-deRef :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m (v (PtrConts v a))
+deRef :: (MonadVar m v, PropUtil m v, HasTop a) => PtrType v a -> m (v (PtrConts v a))
 deRef p = getCurrScpPtr p >>= (unpackPtrType <$>) . deRefRaw
 
 insertNoReplace :: IntMap.Key -> a -> IntMap a -> (IntMap a, a)
@@ -81,19 +108,19 @@ insertNoReplace k v mp = let
     Nothing -> (mp',v)
     Just x -> (mp',x)
 
-readVarMap :: (HasScope m, MonadVar m v, HasTop a) => Var v a -> m (PtrType v a)
+readVarMap :: (PropUtil m v, MonadVar m v, HasTop a) => Var v a -> m (PtrType v a)
 readVarMap mp = getScopePath >>= \sp -> readVarMapScope sp mp
 
 
-readVarMapScope :: (HasScope m, MonadVar m v, HasTop a) => ScopePath -> Var v a -> m (PtrType v a)
+readVarMapScope :: (PropUtil m v, MonadVar m v, HasTop a) => ScopePath -> Var v a -> m (PtrType v a)
 readVarMapScope sp mp = do
   (nptr,eqs) <- readVarMapScope' sp mp
-  forM eqs (\(a,b) -> dirEqProp' a b)
+  forM eqs (pushAction . Action)
   return nptr
 
 --returns (resulting ptr, paths that need upward propagation)
 ---WARNING: assuming that the directional equalities returned are eventually placed!
-readVarMapScope' :: (HasScope m, MonadVar m v, HasTop a) => ScopePath -> Var v a -> m (PtrType v a, [(PtrType v a, PtrType v a)])
+readVarMapScope' :: (PropUtil m v, MonadVar m v, HasTop a) => ScopePath -> Var v a -> m (PtrType v a, [(PtrType v a, PtrType v a)])
 readVarMapScope' currScp pm = do
   mp <- MV.read pm
   case mp !? head currScp of
@@ -129,10 +156,10 @@ readVarMapScope' currScp pm = do
         )
 
 
-getCurrScpPtr :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m (PtrType v a)
+getCurrScpPtr :: (MonadVar m v, PropUtil m v, HasTop a) => PtrType v a -> m (PtrType v a)
 getCurrScpPtr p = getScopePath >>= flip getScpPtr p
 
-getScpPtr :: (MonadVar m v, HasScope m, HasTop a) => ScopePath -> PtrType v a -> m (PtrType v a)
+getScpPtr :: (MonadVar m v, PropUtil m v, HasTop a) => ScopePath -> PtrType v a -> m (PtrType v a)
 getScpPtr currScp (P p) = do
   (_,(scp,scpmp)) <- MV.read p
   if head currScp == head scp
@@ -145,7 +172,7 @@ getScpPtr currScp (P p) = do
 parScoped $ iff nv (const ContinuousInstance) (\v -> scoped' currScp $ write v nv )
 -}
 
-readRef :: (MonadVar m v, HasScope m, HasTop a) => PtrType v a -> m a
+readRef :: (MonadVar m v, PropUtil m v, HasTop a) => PtrType v a -> m a
 readRef p = getCurrScpPtr p >>= readRef'
   where readRef' (P p') = do
           (val,(scp,scpmp)) <- MV.read p'
@@ -153,41 +180,41 @@ readRef p = getCurrScpPtr p >>= readRef'
             Left v -> return v
             Right p'' -> readRef' p''
 
-new :: (MonadVar m v, HasScope m, HasTop a) => m (PtrType v a)
+new :: (MonadVar m v, PropUtil m v, HasTop a) => m (PtrType v a)
 new = MV.new (IntMap.empty) >>= readVarMap
 
-newLens :: (HasTop a, MonadVar m v, HasScope m, Show a) => Lens' a b -> b -> m (PtrType v a)
+newLens :: (HasTop a, MonadVar m v, PropUtil m v, Show a) => Lens' a b -> b -> m (PtrType v a)
 newLens l v = do
   n <- new
   writeLens l n v
   return n
 
-readLens :: (MonadVar m v, HasScope m, HasTop a) => Lens' a b -> PtrType v a -> m b
+readLens :: (MonadVar m v, PropUtil m v, HasTop a) => Lens' a b -> PtrType v a -> m b
 readLens l = ((^. l) <$>) . readRef
 
-writeLens :: (MonadVar m v, HasScope m, HasTop a, Show a) => Lens' a b -> PtrType v a -> b -> m ()
+writeLens :: (MonadVar m v, PropUtil m v, HasTop a, Show a) => Lens' a b -> PtrType v a -> b -> m ()
 writeLens l p v = mutateLens_ l p (const v)
 
-mutateLens_ :: (MonadVar m v, HasScope m, HasTop a, Show a) => Lens' a b -> PtrType v a -> (b -> b) -> m ()
+mutateLens_ :: (MonadVar m v, PropUtil m v, HasTop a, Show a) => Lens' a b -> PtrType v a -> (b -> b) -> m ()
 mutateLens_ l p f = mutateLens l p ((,()) . f)
 
 mutateLens :: forall m v a b s.
   ( MonadVar m v,
-    HasScope m,
+    PropUtil m v,
     HasTop a,
     Show a) => Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
 mutateLens l' p f' = getCurrScpPtr p >>= \p' -> mutateLens' l' p' f'
 
 mutateLensIn :: forall m v a b s.
   ( MonadVar m v,
-    HasScope m,
+    PropUtil m v,
     HasTop a,
     Show a) => ScopePath -> Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
 mutateLensIn sp l' p f' = getScpPtr sp p >>= \p' -> mutateLens' l' p' f'
 
 mutateLens' :: forall m v a b s.
   ( MonadVar m v,
-    HasScope m,
+    PropUtil m v,
     HasTop a,
     Show a) => Lens' a b -> PtrType v a -> (b -> (b,s)) -> m s
 mutateLens' l (P p') f = do

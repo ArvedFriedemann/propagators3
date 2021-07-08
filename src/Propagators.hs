@@ -34,7 +34,7 @@ idLens = id
 write :: forall b a m v .
   (MonadFork m,
    MonadVar m v,
-   HasScope m,
+   PropUtil m v,
    HasValue b a,
    Show a,
    Eq a,
@@ -48,7 +48,7 @@ write adr' val = getCurrScpPtr adr' >>= \adr -> write' adr val
 write' :: forall b a m v .
   (MonadFork m,
    MonadVar m v,
-   HasScope m,
+   PropUtil m v,
    HasValue b a,
    Show a,
    Eq a,
@@ -62,7 +62,7 @@ write' adr val = mutateLens' idLens adr (\v -> updateVal @_ @a v $ set value (v 
 
 addPropagator :: forall b a m v.
   ( MonadVar m v,
-    HasScope m,
+    PropUtil m v,
     HasTop b,
     HasValue b a,
     Show b,
@@ -72,14 +72,14 @@ addPropagator p pred cont = getCurrScpPtr p >>= \p' -> addPropagator' p' pred co
 
 addPropagator' :: forall b a m v.
   ( MonadVar m v,
-    HasScope m,
+    PropUtil m v,
     HasTop b,
     HasValue b a,
     Show b,
     HasProps m b a) =>
   PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()
 addPropagator' p pred cont = do
-  join $ mutateLens' sp idLens p $ \v ->  case pred (v ^. value) of
+  join $ mutateLens' idLens p $ \v ->  case pred (v ^. value) of
       Failed -> (v, return ())
       Instance -> (v, cont $ v ^. value)
       NoInstance -> (set props (ContRec pred (readLens value p >>= cont) : (v ^. props)) v, return ())
@@ -134,7 +134,7 @@ splitInstantiated lst f = (filter ((== Failed) . f) lst
 
 iff :: forall b a m v.
   ( MonadVar m v,
-    HasScope m,
+    PropUtil m v,
     HasTop b,
     Show b,
     HasValue b a,
@@ -150,7 +150,7 @@ iff = addPropagator
 merge :: forall b a m v.
   ( MonadFork m,
     MonadVar m v,
-    HasScope m,
+    PropUtil m v,
     StdPtr v,
     HasValue b a,
     HasProps m b a,
@@ -171,17 +171,29 @@ merge v1 (P v2) = do
 
 
 -----------------------------------
---Pointer merging
+--Directional equality
 -----------------------------------
 dirEqProp' :: forall b a m v.
   ( MonadVar m v,
-    HasScope m,
+    MonadFork m,
+    PropUtil m v,
+    HasTop b,
+    Show b,
+    Show a,
+    Eq a,
+    Lattice a,
+    HasValue b a,
+    HasProps m b a) => PtrType v b -> PtrType v b -> m ()
+dirEqProp' p1 p2 = addPropagator' @b @a p1 (const ContinuousInstance) (\v -> write' p2 v)
+
+flush :: forall b a m v.
+  ( MonadVar m v,
+    MonadFork m,
+    PropUtil m v,
     HasTop b,
     Show b,
     HasValue b a,
-    HasProps m b a) => PtrType v a -> PtrType v a -> m ()
-dirEqProp' p1 p2 = addPropagator' p1 (const ContinuousInstance) (\v -> write' p2 v)
-
-
+    HasProps m b a) => m ()
+flush = flushActions >>= mapM_ (\(Action (p1,p2)) -> dirEqProp' p1 p2)
 
 --
