@@ -59,8 +59,8 @@ test3 = flip runReaderT initPS $ do
   scoped $ do
     --TODO: does not propagate up the values from the orig, so the "a" is not present yet
     write v1 ["b"]
-    iff v1 (\v -> if length v == 1 then Instance else NoInstance) (lift . putStrLn . (++" in scope") . show)
-  iff v1 (\v -> if length v == 1 then Instance else NoInstance) (lift . putStrLn . (++" in orig (this should not be printed!)") .show) --this should not print!
+    iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . (++" in scope") . show)
+  iff v1 (\v -> if length v == 1 then Instance else NoInstance) (lift . putStrLn . (++" in orig (this should only have one value!)") .show) --this should not print!
   return ()
 
 {-
