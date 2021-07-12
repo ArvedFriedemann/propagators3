@@ -283,6 +283,7 @@ addPropagator' p pred cont = do
       Failed -> (v, return ())
       Instance -> (v, cont $ v ^. value)
       NoInstance -> (set props (ContRec pred (readLens @_ @a value p >>= cont) : (v ^. props)) v, return ())
+      ContinuousInstance -> (set props (ContRec pred (readLens @_ @a value p >>= cont) : (v ^. props)) v, cont $ v ^. value)
 
 
 --second collection is the succeeding propagators, first is the failed one that needs to be written back
