@@ -1,7 +1,7 @@
 module RunPropagators where
 
 import "this" Propagators
-import "this" LensVars
+import "this" PropagatorTypes
 import "this" CustomVars
 import "containers" Data.Set (Set)
 import qualified "containers" Data.Set as S
@@ -11,10 +11,10 @@ import qualified "monad-var" MonadVar.Classes as MV
 import "monad-var" MonadVar.Instances.IORef
 import "base" Data.IORef
 import "lens" Control.Lens
-import "transformers" Control.Monad.Trans.Reader
-import "transformers" Control.Monad.Trans.Class
+import "mtl" Control.Monad.Reader
 import "base" Control.Monad.IO.Class
 import "base" Control.Concurrent
+
 
 type PtrCont m a = (a,PCollection m a)
 
@@ -31,12 +31,12 @@ instance Lattice [a] where
 instance BoundedMeetSemiLattice [a] where
   top = []
 
-newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadVar m v, HasScope m, Show a) =>
+newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadVar m v, PropUtil m, Show a, Eq a) =>
   a -> m (PtrType v (PtrCont m a))
 newLens' = newLens value
 
 test1 :: forall v. (v ~ UP) => IO ()
-test1 = flip runReaderT [0] $ do
+test1 = flip runReaderT initPS $ do
   v1 <- newLens' @v ["a"]
   v2 <- newLens' @v []
   merge v1 v2
@@ -44,7 +44,7 @@ test1 = flip runReaderT [0] $ do
   return ()
 
 test2 :: forall v. (v ~ UP) => IO ()
-test2 = flip runReaderT [0] $ do
+test2 = flip runReaderT initPS $ do
   v1 <- newLens' @v $ ["a"]
   write v1 ["b"]
   --liftIO $ threadDelay 1000000
@@ -54,7 +54,7 @@ test2 = flip runReaderT [0] $ do
 
 
 test3 :: forall v. (v ~ UP) => IO ()
-test3 = flip runReaderT [0] $ do
+test3 = flip runReaderT initPS $ do
   v1 <- newLens' @v ["a"]
   scoped $ do
     --TODO: does not propagate up the values from the orig, so the "a" is not present yet
