@@ -65,7 +65,7 @@ instance (MonadIO m, MonadFork m, MonadVar m v) => PropUtil (ReaderT (PropState 
       1 -> ((length l,[]),l)
       _ -> ((i-1,l),[]))) >>= sequence_ . (map $ forkExec . (>> decrementJobs))
   -- addFixpoint :: ReaderT (PropState m v) m () -> ReaderT (PropState m v) m ()
-  addFixpoint m = asks fixpointSem >>= \s -> lift $ MV.mutate_ s (\(i,l) -> (i,  m : l))
+  addFixpoint m = ask >>= \s -> lift $ MV.mutate_ (fixpointSem s) (\(i,l) -> (i,  (local (const s) m) : l))
 
 
 
