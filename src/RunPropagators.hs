@@ -36,7 +36,7 @@ newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadVar m v, PropUtil m, 
 newLens' = newLens value
 
 test1 :: forall v. (v ~ UP) => IO ()
-test1 = initPS @v >>= \s -> flip runReaderT s $ do
+test1 = runPropM @v $ do
   v1 <- newLens' @v ["a"]
   v2 <- newLens' @v []
   merge v1 v2
@@ -44,7 +44,7 @@ test1 = initPS @v >>= \s -> flip runReaderT s $ do
   return ()
 
 test2 :: forall v. (v ~ UP) => IO ()
-test2 = initPS @v >>= \s -> flip runReaderT s $ do
+test2 = runPropM @v $ do
   v1 <- newLens' @v $ ["a"]
   write v1 ["b"]
   --liftIO $ threadDelay 1000000
@@ -54,7 +54,7 @@ test2 = initPS @v >>= \s -> flip runReaderT s $ do
 
 
 test3 :: forall v. (v ~ UP) => IO ()
-test3 = initPS @v >>= \s -> flip runReaderT s $ do
+test3 = runPropM @v $ do
   v1 <- newLens' @v ["a"]
   scoped $ do
     --TODO: does not propagate up the values from the orig, so the "a" is not present yet
@@ -64,7 +64,7 @@ test3 = initPS @v >>= \s -> flip runReaderT s $ do
   return ()
 
 testFP :: forall v. (v ~ UP) => IO ()
-testFP = initPS @v >>= \s -> flip runReaderT s $ do
+testFP = runPropM @v $ do
   v1 <- newLens' @v ["a"]
   addFixpoint (write v1 ["b"] >> readLens value v1 >>= lift . putStrLn . show)
   return ()

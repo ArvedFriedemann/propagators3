@@ -41,6 +41,9 @@ initPS = do
   sem <- MV.new (0, [])
   return $ PS {scopes = [0], fixpointSem = sem}
 
+runPropM :: forall v m a. (MonadVar m v, MonadIO m, MonadFork m) => ReaderT (PropState m v) m a -> m a
+runPropM m = initPS @v >>= \s -> flip runReaderT s (incrementJobs >> m >>= \r -> decrementJobs >> return r)
+
 -- type RWST r w s m a
 -- is a reader with env r, writer with w, state with s, inner monad m
 
@@ -161,12 +164,6 @@ getScpPtr currScp (P p) = do
   if head currScp == head scp
   then return (P p)
   else readVarMapScope @_ @a currScp scpmp
-
-{-
-
-
-parScoped $ iff nv (const ContinuousInstance) (\v -> scoped' currScp $ write v nv )
--}
 
 readRef :: forall b a m v. (MonadVar m v, PropUtil m, Std m b a) => PtrType v b -> m b
 readRef p = getCurrScpPtr @_ @a p >>= readRef'

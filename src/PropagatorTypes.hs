@@ -26,7 +26,6 @@ class (MonadFork m) => PropUtil m where
   getScope :: m Int
   getScopePath :: m ScopePath
   scoped :: m a -> m a
-  scoped' :: Int -> m a -> m a
   parScoped :: m a -> m a
   incrementJobs :: m ()
   decrementJobs :: m ()
