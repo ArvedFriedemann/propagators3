@@ -28,6 +28,9 @@ class (MonadFork m) => PropUtil m where
   scoped :: m a -> m a
   scoped' :: Int -> m a -> m a
   parScoped :: m a -> m a
+  incrementJobs :: m ()
+  decrementJobs :: m ()
+  addFixpoint :: m () -> m ()
 
 data ContRec m a = ContRec {
   crpred :: a -> Instantiated,

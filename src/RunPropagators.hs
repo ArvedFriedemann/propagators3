@@ -36,7 +36,7 @@ newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadVar m v, PropUtil m, 
 newLens' = newLens value
 
 test1 :: forall v. (v ~ UP) => IO ()
-test1 = flip runReaderT initPS $ do
+test1 = initPS @v >>= \s -> flip runReaderT s $ do
   v1 <- newLens' @v ["a"]
   v2 <- newLens' @v []
   merge v1 v2
@@ -44,7 +44,7 @@ test1 = flip runReaderT initPS $ do
   return ()
 
 test2 :: forall v. (v ~ UP) => IO ()
-test2 = flip runReaderT initPS $ do
+test2 = initPS @v >>= \s -> flip runReaderT s $ do
   v1 <- newLens' @v $ ["a"]
   write v1 ["b"]
   --liftIO $ threadDelay 1000000
@@ -54,13 +54,19 @@ test2 = flip runReaderT initPS $ do
 
 
 test3 :: forall v. (v ~ UP) => IO ()
-test3 = flip runReaderT initPS $ do
+test3 = initPS @v >>= \s -> flip runReaderT s $ do
   v1 <- newLens' @v ["a"]
   scoped $ do
     --TODO: does not propagate up the values from the orig, so the "a" is not present yet
     write v1 ["b"]
     iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . (++" in scope") . show)
   iff v1 (\v -> if length v == 1 then Instance else NoInstance) (lift . putStrLn . (++" in orig (this should only have one value!)") .show) --this should not print!
+  return ()
+
+testFP :: forall v. (v ~ UP) => IO ()
+testFP = initPS @v >>= \s -> flip runReaderT s $ do
+  v1 <- newLens' @v ["a"]
+  addFixpoint (write v1 ["b"] >> readLens value v1 >>= lift . putStrLn . show)
   return ()
 
 {-

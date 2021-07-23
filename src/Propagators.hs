@@ -33,16 +33,18 @@ import "this" PropagatorTypes
 -------------------------------------------------------
 
 
-data PropState v =
-  PS { scopes :: [Int]}
+data PropState m v =
+  PS { scopes :: [Int], fixpointSem :: v (Int, [ReaderT (PropState m v) m ()])}
 
-initPS :: PropState v
-initPS = PS {scopes = [0]}
+initPS :: forall v m . (MonadNew m v) => m (PropState m v)
+initPS = do
+  sem <- MV.new (0, [])
+  return $ PS {scopes = [0], fixpointSem = sem}
 
 -- type RWST r w s m a
 -- is a reader with env r, writer with w, state with s, inner monad m
 
-instance (MonadIO m, MonadFork m) => PropUtil (ReaderT (PropState v) m) where
+instance (MonadIO m, MonadFork m, MonadVar m v) => PropUtil (ReaderT (PropState m v) m) where
   getScope = asks (head . scopes)
   getScopePath = asks scopes
   scoped m = do
@@ -54,6 +56,15 @@ instance (MonadIO m, MonadFork m) => PropUtil (ReaderT (PropState v) m) where
       (_ : xs) -> do
         local (\s -> s{scopes = xs}) m
       _ -> error "calling parScoped on Parent!"
+  incrementJobs = asks fixpointSem >>= \s -> lift $ MV.mutate_ s (\(i,l) -> (i + 1, l))
+  decrementJobs = asks fixpointSem >>= (\s -> lift $ MV.mutate s (\(i,l) ->
+    case i of
+      1 -> ((length l,[]),l)
+      _ -> ((i-1,l),[]))) >>= sequence_ . (map $ forkExec . (>> decrementJobs))
+  -- addFixpoint :: ReaderT (PropState m v) m () -> ReaderT (PropState m v) m ()
+  addFixpoint m = asks fixpointSem >>= \s -> lift $ MV.mutate_ s (\(i,l) -> (i,  m : l))
+
+
 
 type MonadVar m v = (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m v)
 
@@ -308,8 +319,8 @@ updateVal' mt = (set props nosuccprops mt, succprops)
   where --TODO: equality check with old value?
     (nosuccprops, succprops) = notifyPure (mt ^. value) (mt ^. props)
 
-runProps :: (MonadFork m) => PCollection m a -> m ()
-runProps = mapM_ (forkExec . crcont)
+runProps :: (MonadFork m, PropUtil m) => PCollection m a -> m ()
+runProps = mapM_ (\m -> forkExec $ incrementJobs >> (crcont m) >> decrementJobs)
 
 
 
