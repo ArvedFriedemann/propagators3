@@ -40,7 +40,7 @@ test1 = runPropM @v $ do
   v1 <- newLens' @v ["a"]
   v2 <- newLens' @v []
   merge v1 v2
-  iff v2 (\v -> if null v then NoInstance else Instance) (lift . putStrLn . show)
+  addPropagator v2 (\v -> if null v then NoInstance else Instance) (lift . putStrLn . show)
   return ()
 
 test2 :: forall v. (v ~ UP) => IO ()
@@ -49,7 +49,7 @@ test2 = runPropM @v $ do
   write v1 ["b"]
   --liftIO $ threadDelay 1000000
   --readRef v1 >>= liftIO . putStrLn . ("contents of v1: "++) . show
-  iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . show)
+  addPropagator v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . show)
   return ()
 
 
@@ -59,8 +59,8 @@ test3 = runPropM @v $ do
   scoped $ do
     --TODO: does not propagate up the values from the orig, so the "a" is not present yet
     write v1 ["b"]
-    iff v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . (++" in scope") . show)
-  iff v1 (\v -> if length v == 1 then Instance else NoInstance) (lift . putStrLn . (++" in orig (this should only have one value!)") .show) --this should not print!
+    addPropagator v1 (\v -> if length v == 2 then Instance else NoInstance) (lift . putStrLn . (++" in scope") . show)
+  addPropagator v1 (\v -> if length v == 1 then Instance else NoInstance) (lift . putStrLn . (++" in orig (this should only have one value!)") .show) --this should not print!
   return ()
 
 testFP :: forall v. (v ~ UP) => IO ()
@@ -76,7 +76,7 @@ X -m> Y ~> Reason for X, Reason for m implies Reason for Y
 A
 
 do
-iff X ... iff Y ... iff Z ... write K <~ put reasons X Y Z
+addPropagator X ... addPropagator Y ... addPropagator Z ... write K <~ put reasons X Y Z
 
 k :: m [v a]
 
@@ -88,8 +88,8 @@ do
 
 scoped m
 
-iff x nil (...) ;
-iff x cons $ splitCons (\x xs -> ) ;
+addPropagator x nil (...) ;
+addPropagator x cons $ splitCons (\x xs -> ) ;
 
 f [] = ...
 f (x : xs) = ...

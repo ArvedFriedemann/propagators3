@@ -4,34 +4,38 @@ import "lattices" Algebra.Lattice (Lattice, BoundedMeetSemiLattice)
 import qualified "lattices" Algebra.Lattice as Lat
 import "base" Control.Monad.IO.Class
 import "lens" Control.Lens
+import "monad-var" MonadVar.Classes (MonadNew, MonadMutate, MonadWrite, MonadRead)
+import qualified "monad-var" MonadVar.Classes as MV
 
 import "this" Propagators
 import "this" PropagatorTypes
 
 class MonadProp m v where
-  readState :: v a -> m a
-  readUpdate :: (Eq a, Lattice a) => v a -> (a -> m b) -> m ()
-  watch :: (Eq a, Lattice a) => v a -> m b -> m ()
-  watch v m = readUpdate v (const m)
-  write :: (Eq a, Lattice a) => v a -> a -> m ()
+  readState :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> m a
 
-  merge :: (Eq a, Lattice a) => v a -> v a -> m ()
+  iff :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> (a -> Instantiated) -> (a -> m ()) -> m ()
+  readUpdate :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> (a -> m ()) -> m ()
+  readUpdate v = iff v (const ContinuousInstance)
+  watch :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> m () -> m ()
+  watch v m = readUpdate v (const m)
+
+  write :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> a -> m ()
+
+  merge :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> v a -> m ()
 
   scoped :: m a -> m a
   parScoped :: m a -> m a
 
   watchFixpoint :: m a -> m a
 
-newtype PtrCont m a = PtrCont (a, PCollection m a)
-
-ptrContLens :: Lens' (PtrCont m a) (a, PCollection m a)
-ptrContLens = lens (\(PtrCont c) -> c) (\(PtrCont _) c -> PtrCont c)
+type PtrCont m a = (a, PCollection m a)
+newtype CustPtr m v a = CustPtr (PtrType v (PtrCont m a))
 
 instance (a~b) => HasValue (PtrCont m a) b where
-  value = ptrContLens . _1
+  value = _1
 
 instance (a~b) => HasProps m (PtrCont m a) b where
-  props = ptrContLens . _2
+  props = _2
 
 instance Lattice [a] where
   (/\) = (++)
@@ -40,4 +44,6 @@ instance Lattice [a] where
 instance BoundedMeetSemiLattice [a] where
   top = []
 
-instance (MonadIO m) => MonadProp m (PtrCont m) where
+instance (MonadVar m v, PropUtil m) => MonadProp m (CustPtr m v) where
+  readState (CustPtr p) = readLens value p
+  iff (CustPtr p) = addPropagator p

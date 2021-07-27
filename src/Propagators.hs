@@ -328,13 +328,6 @@ splitInstantiated lst f = (filter ((== Failed) . f) lst
                           ,filter ((\x -> x == Instance
                                     || x == ContinuousInstance) . f) lst)
 
-iff :: forall b a m v.
-  ( MonadVar m v,
-    PropUtil m,
-    Std m b a) =>
-  PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()
-iff = addPropagator
-
 
 -----------------------------------
 --Pointer merging
