@@ -26,7 +26,7 @@ class MonadProp m v where
   scoped :: m a -> m a
   parScoped :: m a -> m a
 
-  watchFixpoint :: m a -> m a
+  watchFixpoint :: m () -> m ()
 
 type PtrCont m a = (a, PCollection m a)
 newtype CustPtr m v a = CustPtr (PtrType v (PtrCont m a))
@@ -50,3 +50,6 @@ instance (forall k. Eq (v k), MonadVar m v, PropUtil m) => MonadProp m (CustPtr 
   iff (CustPtr p) = addPropagator p
   write (CustPtr p) = writeLens value p
   merge (CustPtr p1) (CustPtr p2) = mergePtrs p1 p2
+  scoped = PropagatorTypes.scoped
+  parScoped = PropagatorTypes.parScoped
+  watchFixpoint = addFixpoint
