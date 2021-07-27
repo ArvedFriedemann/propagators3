@@ -30,6 +30,7 @@ class MonadProp m v where
 
 type PtrCont m a = (a, PCollection m a)
 newtype CustPtr m v a = CustPtr (PtrType v (PtrCont m a))
+deriving instance (forall k. Eq (v k)) => Eq (CustPtr m v a)
 
 instance (a~b) => HasValue (PtrCont m a) b where
   value = _1
@@ -44,6 +45,8 @@ instance Lattice [a] where
 instance BoundedMeetSemiLattice [a] where
   top = []
 
-instance (MonadVar m v, PropUtil m) => MonadProp m (CustPtr m v) where
+instance (forall k. Eq (v k), MonadVar m v, PropUtil m) => MonadProp m (CustPtr m v) where
   readState (CustPtr p) = readLens value p
   iff (CustPtr p) = addPropagator p
+  write (CustPtr p) = writeLens value p
+  merge (CustPtr p1) (CustPtr p2) = mergePtrs p1 p2

@@ -51,6 +51,7 @@ default-extensions:
 - TypeFamilies
 - TupleSections
 - ExistentialQuantification
+- StandaloneDeriving
 
 library:
   source-dirs: src

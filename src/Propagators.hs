@@ -333,13 +333,13 @@ splitInstantiated lst f = (filter ((== Failed) . f) lst
 --Pointer merging
 -----------------------------------
 
-merge :: forall b a m v.
+mergePtrs :: forall b a m v.
   ( MonadVar m v,
     PropUtil m,
     StdPtr v,
     Std m b a,
     Lattice b) => PtrType v b -> PtrType v b -> m ()
-merge v1 (P v2) = do
+mergePtrs v1 (P v2) = do
   (P v1') <- deRefRaw @_ @a v1 --not perfect, but better than always merging with the topmost pointer.
   --TODO: get the pointer of the current scope!
   unless (P v1' == P v2) $ do
@@ -348,7 +348,7 @@ merge v1 (P v2) = do
       (Right p, rest) -> ((Right p, rest), Right p)
     case oldOrPtr of
       (Left oldCont) -> mutateDirect (P v1') (\v -> updateVal @_ @a oldCont $ v /\ oldCont) >>= runProps
-      (Right p) -> merge @b @a (P v1') p
+      (Right p) -> mergePtrs @b @a (P v1') p
 
 
 -----------------------------------

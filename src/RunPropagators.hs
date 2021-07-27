@@ -39,7 +39,7 @@ test1 :: forall v. (v ~ UP) => IO ()
 test1 = runPropM @v $ do
   v1 <- newLens' @v ["a"]
   v2 <- newLens' @v []
-  merge v1 v2
+  mergePtrs v1 v2
   addPropagator v2 (\v -> if null v then NoInstance else Instance) (lift . putStrLn . show)
   return ()
 
