@@ -7,10 +7,15 @@ import "lens" Control.Lens
 import "monad-var" MonadVar.Classes (MonadNew, MonadMutate, MonadWrite, MonadRead)
 import qualified "monad-var" MonadVar.Classes as MV
 
-import "this" Propagators
+import "this" Propagators hiding (new, write)
+import qualified "this" Propagators as Prop
 import "this" PropagatorTypes
 
-class MonadProp m v where
+class (Monad m) => MonadProp m v where
+  new :: (Eq a, Show a, BoundedMeetSemiLattice a) => m (v a)
+  new' :: (Eq a, Show a, BoundedMeetSemiLattice a) => a -> m (v a)
+  new' v = new >>= \p -> write p v >> return p
+
   readState :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> m a
 
   iff :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> (a -> Instantiated) -> (a -> m ()) -> m ()
@@ -45,7 +50,8 @@ instance Lattice [a] where
 instance BoundedMeetSemiLattice [a] where
   top = []
 
-instance (forall k. Eq (v k), MonadVar m v, PropUtil m) => MonadProp m (CustPtr m v) where
+instance (forall k. Eq (v k), MonadVar m v, PropUtil m, Monad m) => MonadProp m (CustPtr m v) where
+  new = Prop.new >>= return . CustPtr
   readState (CustPtr p) = readLens value p
   iff (CustPtr p) = addPropagator p
   write (CustPtr p) = writeLens value p
