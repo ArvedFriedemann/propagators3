@@ -48,7 +48,10 @@ termListenerSlow ptr = readUpdate ptr $ \TS {..} -> do
   eqAll (S.map fst applications)
   eqAll (S.map snd applications)
 
-eqStream' :: (MonadProp m v, StdPtr v, StdLat a) => v a -> (a -> (Set (TSP v a))) -> (Set (TSP v a)) -> m ()
+eqStream :: (MonadProp m v, StdPtr v, StdLat a) => v a -> (a -> (Set (v a))) -> m ()
+eqStream p f = eqStream' p f S.empty
+
+eqStream' :: (MonadProp m v, StdPtr v, StdLat a) => v a -> (a -> (Set (v a))) -> (Set (v a)) -> m ()
 eqStream' ptr ptrSet alreadyMerged = iff ptr
   (\ts -> case S.difference (ptrSet ts) alreadyMerged of
             (S.toList -> []) -> NoInstance
@@ -61,8 +64,11 @@ eqStream' ptr ptrSet alreadyMerged = iff ptr
     eqStream' ptr ptrSet (S.union alreadyMerged newvars)
 
 
-
-
+termListener :: (MonadProp m v, StdPtr v, StdLat a) => TSP v a -> m ()
+termListener ptr = do
+  eqStream ptr variables
+  eqStream ptr (S.map fst . applications)
+  eqStream ptr (S.map snd . applications)
 
 
 
