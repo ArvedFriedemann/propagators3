@@ -8,6 +8,10 @@ import "monad-parallel" Control.Monad.Parallel (MonadFork)
 type Std m b a = (HasTop b, HasValue b a, Show b, Show a, HasProps m b a, Eq a, Lattice a)
 --type Std m b = (HasTop b, Show b, Eq a)
 
+class (forall a. Show (v a), forall a. Eq (v a), forall a. Ord (v a)) => StdPtr v
+instance (forall a. Show (v a), forall a. Eq (v a), forall a. Ord (v a)) => StdPtr v
+
+
 class HasValue p a where
   value :: Lens' p a
 

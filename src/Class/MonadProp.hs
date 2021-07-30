@@ -11,22 +11,24 @@ import "this" Propagators hiding (new, write)
 import qualified "this" Propagators as Prop
 import "this" PropagatorTypes
 
+type StdLat a = (Eq a, Show a, BoundedMeetSemiLattice a)
+
 class (Monad m) => MonadProp m v where
-  new :: (Eq a, Show a, BoundedMeetSemiLattice a) => m (v a)
-  new' :: (Eq a, Show a, BoundedMeetSemiLattice a) => a -> m (v a)
+  new :: (StdLat a) => m (v a)
+  new' :: (StdLat a) => a -> m (v a)
   new' v = new >>= \p -> write p v >> return p
 
-  readState :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> m a
+  readState :: (StdLat a) => v a -> m a
 
-  iff :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> (a -> Instantiated c) -> (c -> m ()) -> m ()
-  readUpdate :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> (a -> m ()) -> m ()
+  iff :: (StdLat a) => v a -> (a -> Instantiated c) -> (c -> m ()) -> m ()
+  readUpdate :: (StdLat a) => v a -> (a -> m ()) -> m ()
   readUpdate v = iff v ContinuousInstance
-  watch :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> m () -> m ()
+  watch :: (StdLat a) => v a -> m () -> m ()
   watch v m = readUpdate v (const m)
 
-  write :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> a -> m ()
+  write :: (StdLat a) => v a -> a -> m ()
 
-  merge :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> v a -> m ()
+  merge :: (StdLat a) => v a -> v a -> m ()
 
   scoped :: m a -> m a
   parScoped :: m a -> m a

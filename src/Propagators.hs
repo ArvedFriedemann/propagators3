@@ -72,7 +72,7 @@ instance (MonadIO m, MonadFork m, MonadVar m v) => PropUtil (ReaderT (PropState 
 
 type MonadVar m v = (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m v)
 
-type StdPtr v = (forall a. Eq (v a))
+type EqPtr v = (forall a. Eq (v a))
 
 data ScopedPtr v a = ScopedPtr {
   s_ptr :: PtrType v a,
@@ -344,7 +344,7 @@ splitInstantiated val lst = (filter (\(ContRec pred _) -> case pred val of
 mergePtrs :: forall b a m v.
   ( MonadVar m v,
     PropUtil m,
-    StdPtr v,
+    EqPtr v,
     Std m b a,
     Lattice b) => PtrType v b -> PtrType v b -> m ()
 mergePtrs v1 (P v2) = do

@@ -52,6 +52,7 @@ default-extensions:
 - TupleSections
 - ExistentialQuantification
 - StandaloneDeriving
+- RecordWildCards
 
 library:
   source-dirs: src
