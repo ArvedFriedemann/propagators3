@@ -31,9 +31,9 @@ class (MonadFork m) => PropUtil m where
   decrementJobs :: m ()
   addFixpoint :: m () -> m ()
 
-data ContRec m a = ContRec {
-  crpred :: a -> Instantiated,
-  crcont :: m ()
+data ContRec m a = forall b. ContRec {
+  crpred :: a -> Instantiated b,
+  crcont :: b -> m ()
 }
 
 instance Show (ContRec m a) where
@@ -41,5 +41,5 @@ instance Show (ContRec m a) where
 
 type PCollection m a = [ContRec m a]
 
-data Instantiated = Failed | NoInstance | Instance | ContinuousInstance
+data Instantiated a = Failed | NoInstance | Instance a | ContinuousInstance a
   deriving (Show, Eq, Ord)

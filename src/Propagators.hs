@@ -14,6 +14,7 @@ import "mtl" Control.Monad.Reader
 import "base" Control.Monad.IO.Class
 --import "mtl" Control.Monad.Except
 import "base" Data.List
+import "base" Data.Maybe
 import "base" Control.Monad
 import "base" Debug.Trace
 import "base" Data.Function
@@ -271,63 +272,70 @@ write' :: forall b a m v .
    Std m b a,
    Lattice a) =>
   PtrType v b -> a -> m ()
-write' adr val = mutateDirect adr (\v -> updateVal @_ @a v $ set value (v ^. value /\ val) v) >>= runProps
+write' adr val = mutateDirect adr (\v -> updateVal @_ @a v $
+  set value (v ^. value /\ val) v) >>= runProps
 
 
-addPropagator :: forall b a m v.
+addPropagator :: forall b a m v c.
   ( MonadVar m v,
     PropUtil m,
     Std m b a) =>
-  PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()
+  PtrType v b -> (a -> Instantiated c) -> (c -> m ()) -> m ()
 addPropagator p pred cont = getCurrScpPtr @b @a p >>= \p' -> addPropagator' p' pred cont
 
-addPropagator' :: forall b a m v.
+addPropagator' :: forall b a m v c.
   ( MonadVar m v,
     PropUtil m,
     Std m b a) =>
-  PtrType v b -> (a -> Instantiated) -> (a -> m ()) -> m ()
+  PtrType v b -> (a -> Instantiated c) -> (c -> m ()) -> m ()
 addPropagator' p pred cont = do
   join $ mutateDirect p $ \v ->  case pred (v ^. value) of
       Failed -> (v, return ())
-      Instance -> (v, cont $ v ^. value)
-      NoInstance -> (set props (ContRec pred (readLens @_ @a value p >>= cont) : (v ^. props)) v, return ())
-      ContinuousInstance -> (set props (ContRec pred (readLens @_ @a value p >>= cont) : (v ^. props)) v, cont $ v ^. value)
+      Instance x -> (v, cont x)
+      NoInstance -> (set props (ContRec pred cont : (v ^. props)) v, return ())
+      ContinuousInstance x -> (set props (ContRec pred cont : (v ^. props)) v, cont x)
 
 
 --second collection is the succeeding propagators, first is the failed one that needs to be written back
-notifyPure :: a -> PCollection m a -> (PCollection m a, PCollection m a)
-notifyPure val props = (inst, noInst)
-  where (_, noInst, inst) = splitInstantiated props (($ val) . crpred)
+notifyPure :: a -> PCollection m a -> (PCollection m a, [m ()])
+notifyPure val props = (noInst, inst)
+  where
+    (_, noInst, inst) = splitInstantiated val props
 
 updateVal :: forall b a m.
   (HasValue b a,
    HasProps m b a,
    Eq a) =>
-   b -> b -> (b, PCollection m a)
+   b -> b -> (b, [m ()])
 updateVal old new
   | (old ^. value :: a) == (new ^. value :: a) = (old, [])
-  | otherwise = updateVal' new
+  | otherwise = updateVal' @b @a new
 
 updateVal' :: forall b a m.
   (HasValue b a,
    HasProps m b a) =>
-   b -> (b, PCollection m a)
+   b -> (b, [m ()])
 updateVal' mt = (set props nosuccprops mt, succprops)
   where --TODO: equality check with old value?
-    (nosuccprops, succprops) = notifyPure (mt ^. value) (mt ^. props)
+    (nosuccprops, succprops) = notifyPure (mt ^. value @_ @a) (mt ^. props)
 
-runProps :: (MonadFork m, PropUtil m) => PCollection m a -> m ()
-runProps = mapM_ (\m -> forkExec $ incrementJobs >> (crcont m) >> decrementJobs)
+runProps :: (MonadFork m, PropUtil m) => [m ()] -> m ()
+runProps = mapM_ (\m -> forkExec $ incrementJobs >> m >> decrementJobs)
 
 
 
-splitInstantiated :: [a] -> (a -> Instantiated) -> ([a],[a],[a])
-splitInstantiated lst f = (filter ((== Failed) . f) lst
-                          ,filter ((\x -> x == NoInstance
-                                    || x == ContinuousInstance) . f) lst
-                          ,filter ((\x -> x == Instance
-                                    || x == ContinuousInstance) . f) lst)
-
+splitInstantiated :: a -> PCollection m a -> (PCollection m a,PCollection m a,[m ()])
+splitInstantiated val lst = (filter (\(ContRec pred _) -> case pred val of
+                                        Failed -> True
+                                        _ -> False) lst
+                            ,filter ((\(ContRec pred _) -> case pred val of
+                                        NoInstance -> True
+                                        ContinuousInstance _ -> True
+                                        _ -> False)) lst
+                            ,mapMaybe (\(ContRec pred cont) -> case pred val of
+                                              Instance x -> Just (cont x)
+                                              ContinuousInstance x -> Just (cont x)
+                                              _ -> Nothing) lst)
 
 -----------------------------------
 --Pointer merging
@@ -360,6 +368,6 @@ dirEqProp' :: forall b a m v.
     PropUtil m,
     Std m b a,
     Lattice a) => PtrType v b -> PtrType v b -> m ()
-dirEqProp' p1 p2 = addPropagator' @b @a p1 (const ContinuousInstance) (\v -> write' p2 v)
+dirEqProp' p1 p2 = addPropagator' @b @a p1 ContinuousInstance (\v -> write' p2 v)
 
 --

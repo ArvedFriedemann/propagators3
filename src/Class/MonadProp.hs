@@ -18,9 +18,9 @@ class (Monad m) => MonadProp m v where
 
   readState :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> m a
 
-  iff :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> (a -> Instantiated) -> (a -> m ()) -> m ()
+  iff :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> (a -> Instantiated c) -> (c -> m ()) -> m ()
   readUpdate :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> (a -> m ()) -> m ()
-  readUpdate v = iff v (const ContinuousInstance)
+  readUpdate v = iff v ContinuousInstance
   watch :: (Eq a, Show a, BoundedMeetSemiLattice a) => v a -> m () -> m ()
   watch v m = readUpdate v (const m)
 
