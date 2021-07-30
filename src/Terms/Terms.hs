@@ -15,7 +15,8 @@ data TermSet v a = TS {
 
 type TSP v a = v (TermSet v a)
 
---type StdPtr v = (forall a. Show (v a), forall a. Eq (v a), forall a. Ord (v a))
+class (forall a. Show (v a), forall a. Eq (v a), forall a. Ord (v a)) => StdPtr v
+instance (forall a. Show (v a), forall a. Eq (v a), forall a. Ord (v a)) => StdPtr v 
 
 {-}
 --TODO: Lattice for TermSet
