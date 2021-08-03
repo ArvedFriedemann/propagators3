@@ -1,5 +1,6 @@
 module Terms.Terms where
 
+import "this" Util
 import "this" Class.MonadProp
 import "this" PropagatorTypes
 import "containers" Data.Set (Set, lookupMin)
@@ -52,6 +53,8 @@ varset t = emptyTS{variables = S.singleton t}
 cset :: TermConst -> TermSet v a
 cset t = emptyTS{constants = S.singleton t}
 
+newTSP :: (MonadProp m v, StdPtr v, StdLat a) => m (TSP v a)
+newTSP = new <<= termListener
 
 eqAll :: (MonadProp m v, StdPtr v, StdLat a) => Set (TSP v a) -> m ()
 eqAll (S.toList -> []) = return ()
@@ -111,7 +114,7 @@ refresh :: (MonadProp m v, StdPtr v, StdLat a) =>
   Set TermConst -> TSP v a -> m (TSP v a)
 refresh s ptr = do
   mp <- M.fromList <$> (forM (S.toList s) (\c -> (c,) <$> new))
-  nptr <- new
+  nptr <- newTSP
   refresh' mp ptr nptr
   return nptr
 
@@ -119,7 +122,7 @@ refresh' :: (MonadProp m v, StdPtr v, StdLat a) =>
   Map TermConst (TSP v a) -> TSP v a -> TSP v a -> m ()
 refresh' mp ptr ptreq = map_appl_const_rep ptr
   (\(p1,p2) -> do
-    (p1',p2') <- (,) <$> new <*> new
+    (p1',p2') <- (,) <$> newTSP <*> newTSP
     refresh' mp p1 p1'
     refresh' mp p2 p2'
     write ptreq $ aplset (p1',p2')
