@@ -2,8 +2,10 @@ module Terms.Terms where
 
 import "this" Class.MonadProp
 import "this" PropagatorTypes
-import "containers" Data.Set (Set)
+import "containers" Data.Set (Set, lookupMin)
 import qualified "containers" Data.Set as S
+import "containers" Data.Map (Map)
+import qualified "containers" Data.Map as M
 import "base" Control.Monad
 import "lattices" Algebra.Lattice (Lattice,BoundedMeetSemiLattice,BoundedJoinSemiLattice,(/\),(\/))
 import qualified "lattices" Algebra.Lattice as Lat
@@ -34,9 +36,22 @@ instance (StdPtr v) => Lattice (TermSet v a) where
  _ \/ _ = undefined
 
 instance (StdPtr v) => BoundedMeetSemiLattice (TermSet v a) where
-  top = TS S.empty S.empty S.empty
+  top = emptyTS
 instance (StdPtr v) => BoundedJoinSemiLattice (TermSet v a) where
-  bottom = TS (S.singleton TBOT) S.empty S.empty
+  bottom = cset TBOT
+
+emptyTS :: TermSet v a
+emptyTS = TS S.empty S.empty S.empty
+
+aplset :: (TSP v a, TSP v a) -> TermSet v a
+aplset t = emptyTS{applications = S.singleton t}
+
+varset :: TSP v a -> TermSet v a
+varset t = emptyTS{variables = S.singleton t}
+
+cset :: TermConst -> TermSet v a
+cset t = emptyTS{constants = S.singleton t}
+
 
 eqAll :: (MonadProp m v, StdPtr v, StdLat a) => Set (TSP v a) -> m ()
 eqAll (S.toList -> []) = return ()
@@ -47,6 +62,7 @@ termListenerSlow ptr = readUpdate ptr $ \TS {..} -> do
   eqAll variables
   eqAll (S.map fst applications)
   eqAll (S.map snd applications)
+  --TODO: PropBot
 
 eqStream :: (MonadProp m v, StdPtr v, StdLat a) => v a -> (a -> (Set (v a))) -> m ()
 eqStream p f = eqStream' p f S.empty
@@ -69,6 +85,52 @@ termListener ptr = do
   eqStream ptr variables
   eqStream ptr (S.map fst . applications)
   eqStream ptr (S.map snd . applications)
+  --TODO: PropBot
+
+
+---------------------------------------------------
+-- Helper functions
+---------------------------------------------------
+
+map_var_rep :: (MonadProp m v, StdPtr v, StdLat a) => TSP v a -> (TSP v a -> m ()) -> m ()
+map_var_rep ptr f = do
+  iffm ptr (lookupMin . variables) f
+  iffm ptr (lookupMin . applications) (\ (p1,p2) -> map_var_rep p1 f >> map_var_rep p2 f)
+--
+map_appl_const_rep :: (MonadProp m v, StdPtr v, StdLat a) =>
+  TSP v a -> ((TSP v a, TSP v a) -> m ()) -> (TermConst -> m ()) -> m ()
+map_appl_const_rep ptr aplcase constcase = do
+  iffm ptr (lookupMin . constants) constcase
+  iffm ptr (lookupMin . applications) aplcase
+
+----------------------------------------------------
+--refresh
+----------------------------------------------------
+
+refresh :: (MonadProp m v, StdPtr v, StdLat a) =>
+  Set TermConst -> TSP v a -> m (TSP v a)
+refresh s ptr = do
+  mp <- M.fromList <$> (forM (S.toList s) (\c -> (c,) <$> new))
+  nptr <- new
+  refresh' mp ptr nptr
+  return nptr
+
+refresh' :: (MonadProp m v, StdPtr v, StdLat a) =>
+  Map TermConst (TSP v a) -> TSP v a -> TSP v a -> m ()
+refresh' mp ptr ptreq = map_appl_const_rep ptr
+  (\(p1,p2) -> do
+    (p1',p2') <- (,) <$> new <*> new
+    refresh' mp p1 p1'
+    refresh' mp p2 p2'
+    write ptreq $ aplset (p1',p2')
+    )
+  (\ c -> do
+    case M.lookup c mp of
+      Just v -> merge v ptreq --TODO: don't create eqptr in this case in the first place
+      Nothing -> write ptreq $ cset c)
+
+
+
 
 
 

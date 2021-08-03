@@ -21,6 +21,8 @@ class (Monad m) => MonadProp m v where
   readState :: (StdLat a) => v a -> m a
 
   iff :: (StdLat a) => v a -> (a -> Instantiated c) -> (c -> m ()) -> m ()
+  iffm :: (StdLat a) => v a -> (a -> Maybe c) -> (c -> m ()) -> m ()
+  iffm ptr fkt = iff ptr (nothingToNoInst . fkt)
   readUpdate :: (StdLat a) => v a -> (a -> m ()) -> m ()
   readUpdate v = iff v ContinuousInstance
   watch :: (StdLat a) => v a -> m () -> m ()

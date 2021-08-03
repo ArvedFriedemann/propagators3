@@ -47,3 +47,11 @@ type PCollection m a = [ContRec m a]
 
 data Instantiated a = Failed | NoInstance | Instance a | ContinuousInstance a
   deriving (Show, Eq, Ord)
+
+nothingToNoInst :: Maybe a -> Instantiated a
+nothingToNoInst (Just c) = Instance c
+nothingToNoInst Nothing = NoInstance
+
+nothingToFailed :: Maybe a -> Instantiated a
+nothingToFailed (Just c) = Instance c
+nothingToFailed Nothing = Failed
