@@ -100,11 +100,35 @@ map_var_rep ptr f = do
   iffm ptr (lookupMin . variables) f
   iffm ptr (lookupMin . applications) (\ (p1,p2) -> map_var_rep p1 f >> map_var_rep p2 f)
 --
-map_appl_const_rep :: (MonadProp m v, StdPtr v, StdLat a) =>
-  TSP v a -> ((TSP v a, TSP v a) -> m ()) -> (TermConst -> m ()) -> m ()
-map_appl_const_rep ptr aplcase constcase = do
+split_const_appl_rep :: (MonadProp m v, StdPtr v, StdLat a) =>
+  TSP v a -> (TermConst -> m ()) -> ((TSP v a, TSP v a) -> m ()) -> m ()
+split_const_appl_rep ptr constcase aplcase = do
   iffm ptr (lookupMin . constants) constcase
   iffm ptr (lookupMin . applications) aplcase
+
+foldnew_const_appl_rep :: (MonadProp m v, StdPtr v, StdLat a) =>
+  TSP v a ->
+  (TSP v a -> TermConst -> m ()) ->
+  (TSP v a -> (TSP v a, TSP v a) -> m ()) ->
+  m (TSP v a)
+foldnew_const_appl_rep ptr constcase aplcase = do
+  nptr <- newTSP
+  foldeq_const_appl_rep ptr nptr constcase aplcase
+  return nptr
+
+foldeq_const_appl_rep :: (MonadProp m v, StdPtr v, StdLat a) =>
+  TSP v a -> TSP v a ->
+  (TSP v a -> TermConst -> m ()) ->
+  (TSP v a -> (TSP v a, TSP v a) -> m ()) ->
+  m ()
+foldeq_const_appl_rep ptr eqptr constcase aplcase = split_const_appl_rep ptr
+  (constcase eqptr)
+  (\(p1,p2) -> do
+    (p1',p2') <- (,) <$> newTSP <*> newTSP
+    p1rec <- foldeq_const_appl_rep p1 p1' constcase aplcase
+    p2rec <- foldeq_const_appl_rep p2 p2' constcase aplcase
+    aplcase eqptr (p1', p2')
+    )
 
 ----------------------------------------------------
 --refresh
@@ -114,26 +138,12 @@ refresh :: (MonadProp m v, StdPtr v, StdLat a) =>
   Set TermConst -> TSP v a -> m (TSP v a)
 refresh s ptr = do
   mp <- M.fromList <$> (forM (S.toList s) (\c -> (c,) <$> new))
-  nptr <- newTSP
-  refresh' mp ptr nptr
-  return nptr
-
-refresh' :: (MonadProp m v, StdPtr v, StdLat a) =>
-  Map TermConst (TSP v a) -> TSP v a -> TSP v a -> m ()
-refresh' mp ptr ptreq = map_appl_const_rep ptr
-  (\(p1,p2) -> do
-    (p1',p2') <- (,) <$> newTSP <*> newTSP
-    refresh' mp p1 p1'
-    refresh' mp p2 p2'
-    write ptreq $ aplset (p1',p2')
-    )
-  (\ c -> do
+  foldnew_const_appl_rep ptr
+    (\ eqptr c -> do
     case M.lookup c mp of
-      Just v -> merge v ptreq --TODO: don't create eqptr in this case in the first place
-      Nothing -> write ptreq $ cset c)
-
-
-
+      Just v -> merge v eqptr --TODO: don't create eqptr in this case in the first place
+      Nothing -> write eqptr $ cset c)
+    (\eqptr (p1,p2) -> write eqptr $ aplset (p1,p2))
 
 
 
