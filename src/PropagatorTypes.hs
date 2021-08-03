@@ -21,8 +21,21 @@ class HasProps m p a where
 class HasTop a where
   top :: a
 
+class HasBot a where
+  bot :: a
+
+
+class HasDecTop a where
+  isTop :: a -> Bool
+
+class HasDecBot a where
+  isBot :: a -> Bool
+
 instance (Lat.BoundedMeetSemiLattice a) => HasTop a where
   top = Lat.top
+
+instance (Lat.BoundedJoinSemiLattice a) => HasBot a where
+  bot = Lat.bottom
 
 type ScopePath = [Int]
 

@@ -41,6 +41,12 @@ instance (StdPtr v) => BoundedMeetSemiLattice (TermSet v a) where
 instance (StdPtr v) => BoundedJoinSemiLattice (TermSet v a) where
   bottom = cset TBOT
 
+instance HasDecTop (TermSet v a) where
+  isTop (TS a b c) = and [S.null a, S.null b, S.null c]
+
+instance HasDecBot (TermSet v a) where
+  isBot ts = S.member TBOT $ constants ts
+
 emptyTS :: TermSet v a
 emptyTS = TS S.empty S.empty S.empty
 
