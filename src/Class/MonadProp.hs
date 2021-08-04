@@ -71,6 +71,9 @@ instance Lattice [a] where
 instance BoundedMeetSemiLattice [a] where
   top = []
 
+instance HasDecTop [a] where
+  isTop = null
+
 newtype RevSet a = RS (Set a)
   deriving (Show, Eq, Ord) via (Set a)
 

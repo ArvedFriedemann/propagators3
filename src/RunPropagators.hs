@@ -2,6 +2,7 @@ module RunPropagators where
 
 import "this" Propagators
 import "this" PropagatorTypes
+import "this" Logic.Disjunction
 import "this" CustomVars
 import "containers" Data.Set (Set)
 import qualified "containers" Data.Set as S
@@ -18,6 +19,7 @@ import "base" Control.Concurrent
 
 type PtrCont m a = (a,PCollection m a)
 
+{-}
 instance (a~b) => HasValue (PtrCont m a) b where
   value = _1
 
@@ -30,7 +32,9 @@ instance Lattice [a] where
 
 instance BoundedMeetSemiLattice [a] where
   top = []
+-}
 
+{-}
 newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadVar m v, PropUtil m, Show a, Eq a) =>
   a -> m (PtrType v (PtrCont m a))
 newLens' = newLens value
@@ -68,7 +72,7 @@ testFP = runPropM @v $ do
   v1 <- newLens' @v ["a"]
   addFixpoint (write v1 ["b"] >> readLens value v1 >>= lift . putStrLn . show)
   return ()
-
+-}
 {-
 
 X,Y variables
