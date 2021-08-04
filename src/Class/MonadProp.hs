@@ -16,7 +16,7 @@ import qualified "this" PropagatorTypes as PropT
 
 type StdLat a = (Eq a, Show a, BoundedMeetSemiLattice a)
 
-class (Monad m) => MonadProp m v where
+class (Monad m) => MonadProp m v | m -> v where
   new :: (StdLat a) => m (v a)
   new' :: (StdLat a) => a -> m (v a)
   new' v = new >>= \p -> write p v >> return p

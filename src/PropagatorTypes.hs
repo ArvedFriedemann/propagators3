@@ -10,6 +10,7 @@ import "mtl" Control.Monad.Reader
 import "hashable" Data.Hashable
 import "unique" Control.Concurrent.Unique
 import "monad-parallel" Control.Monad.Parallel (MonadFork, forkExec)
+import "this" CustomVars
 
 type Std m b a = (HasTop b, HasValue b a, Show b, Show a, HasProps m b a, Eq a, Lattice a)
 --type Std m b = (HasTop b, Show b, Eq a)
@@ -119,4 +120,8 @@ instance (MonadIO m, MonadFork m, MonadVar m v) => PropUtil (ReaderT (PropState 
   -- addFixpoint :: ReaderT (PropState m v) m () -> ReaderT (PropState m v) m ()
   addFixpoint m = ask >>= \s -> lift $ MV.mutate_ (fixpointSem s) (\(i,l) -> (i,  (local (const s) m) : l))
 
-type MonadVar m v = (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m v)
+class (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m v) => MonadVar m v | m -> v
+--instance (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m v) => MonadVar m v
+
+instance MonadVar IO UP
+instance MonadVar (ReaderT (PropState IO UP) IO) UP

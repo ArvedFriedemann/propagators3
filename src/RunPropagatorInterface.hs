@@ -10,7 +10,7 @@ import "mtl" Control.Monad.Reader
 
 testDisj :: forall v. (v ~ UP) => IO ()
 testDisj = runPropM @v $ do
-  v <- new' @_ @(CustPtr (ReaderT (PropState IO v) IO) v) ["a"]
+  v <- new' ["a"]
   return ()
   {-}
   v1 <- new []
