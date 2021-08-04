@@ -45,8 +45,10 @@ type Var v a = v (IntMap (ScopedPtr v a, [ScopedPtr v a]))
 type PtrConts v a = (Either a (PtrType v a), (ScopePath, Var v a))
 newtype PtrType v a = P (v (PtrConts v a))
 
-instance (forall a. Eq (v a)) => Eq (PtrType v a) where
-  (P p1) == (P p2) = p1 == p2
+deriving instance (forall a. Eq (v a)) => Eq (PtrType v a)
+deriving instance (forall a. Show (v a)) => Show (PtrType v a)
+deriving instance (forall a. Ord (v a)) => Ord (PtrType v a)
+
 
 unpackPtrType :: PtrType v a -> v (PtrConts v a)
 unpackPtrType (P p) = p

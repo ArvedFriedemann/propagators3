@@ -16,10 +16,12 @@ import qualified "this" PropagatorTypes as PropT
 
 type StdLat a = (Eq a, Show a, BoundedMeetSemiLattice a)
 
-class (Monad m) => MonadProp m v | m -> v where
+class (Monad m, StdPtr v) => MonadProp m v | m -> v where
   new :: (StdLat a) => m (v a)
   new' :: (StdLat a) => a -> m (v a)
   new' v = new >>= \p -> write p v >> return p
+
+  getCurrScopePtr :: (StdLat a) => v a -> m (v a)
 
   readState :: (StdLat a) => v a -> m a
 
@@ -57,6 +59,10 @@ class (Monad m) => MonadProp m v | m -> v where
 type PtrCont m a = (a, PCollection m a)
 newtype CustPtr m v a = CustPtr (PtrType v (PtrCont m a))
 deriving instance (forall k. Eq (v k)) => Eq (CustPtr m v a)
+deriving instance (forall k. Show (v k)) => Show (CustPtr m v a)
+deriving instance (forall k. Ord (v k)) => Ord (CustPtr m v a)
+
+instance (forall k. Eq (v k), forall k. Show (v k), forall k. Ord (v k)) => StdPtr (CustPtr m v)
 
 instance (a~b) => HasValue (PtrCont m a) b where
   value = _1
@@ -84,8 +90,9 @@ instance (Ord a) => Lattice (RevSet a) where
 instance (Ord a) => BoundedMeetSemiLattice (RevSet a) where
   top = RS S.empty
 
-instance (forall k. Eq (v k), MonadVar m v, PropUtil m, Monad m) => MonadProp m (CustPtr m v) where
+instance (StdPtr v, MonadVar m v, PropUtil m, Monad m) => MonadProp m (CustPtr m v) where
   new = Prop.new >>= return . CustPtr
+  getCurrScopePtr (CustPtr p) = CustPtr <$> deRefRaw p
   readState (CustPtr p) = readLens value p
   iff (CustPtr p) = addPropagator p
   write (CustPtr p) = writeLens value p

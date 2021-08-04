@@ -61,11 +61,33 @@ test3 :: forall v. (v ~ UP) => IO ()
 test3 = runPropM @v $ do
   v1 <- newLens' @v ["a"]
   scoped $ do
-    --TODO: does not propagate up the values from the orig, so the "a" is not present yet
     write v1 ["b"]
     addPropagator v1 (\v -> if length v == 2 then Instance v else NoInstance) (lift . putStrLn . (++" in scope") . show)
-  addPropagator v1 (\v -> if length v == 1 then Instance v else NoInstance) (lift . putStrLn . (++" in orig (this should only have one value!)") .show) --this should not print!
+  addPropagator v1 (\v -> if length v == 1 then Instance v else NoInstance) (lift . putStrLn . (++" in orig (this should only have one value!)") .show)
   return ()
+
+test4 :: forall v. (v ~ UP) => IO ()
+test4 = runPropM @v $ do
+  v1 <- newLens' @v ["a"]
+  scoped $ do
+    parScoped $ write v1 ["b"]
+    addPropagator v1 ContinuousInstance (lift . putStrLn . (++" in scope") . show)
+  addPropagator v1 (\v -> if length v == 2 then Instance v else NoInstance) (lift . putStrLn . (++" in orig (this should only have two values!)") .show)
+  return ()
+
+testContInst :: forall v. (v ~ UP) => IO ()
+testContInst = runPropM @v $ do
+  v1 <- newLens' @v ["a"]
+  addPropagator v1 ContinuousInstance (lift . putStrLn . ("v1: "++) . show)
+  forM_ [0..10] $ const $ write v1 ["a"]
+
+testContInstScope :: forall v. (v ~ UP) => IO ()
+testContInstScope = runPropM @v $ do
+  v1 <- newLens' @v ["a"]
+  scoped $ do
+    v1' <- deRefRaw v1
+    addPropagator v1' ContinuousInstance (lift . putStrLn . ("v1: "++) . show)
+  forM_ [0..10] $ const $ write v1 ["a"]
 
 testFP :: forall v. (v ~ UP) => IO ()
 testFP = runPropM @v $ do

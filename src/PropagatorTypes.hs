@@ -16,7 +16,7 @@ type Std m b a = (HasTop b, HasValue b a, Show b, Show a, HasProps m b a, Eq a, 
 --type Std m b = (HasTop b, Show b, Eq a)
 
 class (forall a. Show (v a), forall a. Eq (v a), forall a. Ord (v a)) => StdPtr v
-instance (forall a. Show (v a), forall a. Eq (v a), forall a. Ord (v a)) => StdPtr v
+--instance (forall a. Show (v a), forall a. Eq (v a), forall a. Ord (v a)) => StdPtr v
 
 
 class HasValue p a where
@@ -125,3 +125,4 @@ class (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m v) => MonadVar
 
 instance MonadVar IO UP
 instance MonadVar (ReaderT (PropState IO UP) IO) UP
+instance StdPtr UP
