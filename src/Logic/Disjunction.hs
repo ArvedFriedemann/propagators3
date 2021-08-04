@@ -20,6 +20,16 @@ disjunctForkPromote' :: forall a v m.
   v a -> [m ()] -> m ()
 disjunctForkPromote' p lst = disjunctFork p (zip (repeat $ promote p) lst)
 
+disjunctForkPromotePred :: forall a v m.
+  (MonadProp m v, StdLat a, HasDecBot a, Promoter m v a) =>
+  v a -> (a -> Bool) -> [m ()] -> m ()
+disjunctForkPromotePred p pred lst = disjunctFork' p pred (zip (repeat $ promoteAction p) lst)
+
+disjunctForkPromotePred' :: forall a v m.
+  (MonadProp m v, StdLat a) =>
+  v a -> (a -> Bool) -> [m ()] -> m ()
+disjunctForkPromotePred' p pred lst = disjunctFork' p pred (zip (repeat $ promote p) lst)
+
 disjunctFork :: forall a v m. (MonadProp m v, StdLat a, HasDecBot a) =>
   v a -> [(m (), m ())] -> m ()
 disjunctFork p = disjunctFork' p isBot

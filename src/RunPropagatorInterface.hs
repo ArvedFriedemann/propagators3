@@ -10,13 +10,9 @@ import "mtl" Control.Monad.Reader
 
 testDisj :: forall v. (v ~ UP) => IO ()
 testDisj = runPropM @v $ do
-  v <- new' ["a"]
-  return ()
-  {-}
-  v1 <- new []
-  disjunctFork' v1 (\(c,_) -> c == ["a"]) [
+  v1 <- new' []
+  disjunctForkPromotePred' v1 (\c -> c == ["a"]) [
       write v1 ["a"],
       write v1 ["b"]
     ]
-  addPropagator v1 ContinuousInstance (lift . putStrLn . (++" in scope") . show)
-  -}
+  readUpdate v1 (lift . putStrLn . (++" in scope") . show)

@@ -34,7 +34,7 @@ instance BoundedMeetSemiLattice [a] where
   top = []
 -}
 
-{-}
+
 newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadVar m v, PropUtil m, Show a, Eq a) =>
   a -> m (PtrType v (PtrCont m a))
 newLens' = newLens value
@@ -72,7 +72,7 @@ testFP = runPropM @v $ do
   v1 <- newLens' @v ["a"]
   addFixpoint (write v1 ["b"] >> readLens value v1 >>= lift . putStrLn . show)
   return ()
--}
+
 {-
 
 X,Y variables
