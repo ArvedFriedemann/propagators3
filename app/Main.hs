@@ -2,6 +2,7 @@ module Main where
 
 import Propagators
 import RunPropagators
+import RunPropagatorInterface
 --import BetterVariables
 --import Temp
 import "monad-var" MonadVar.Classes (MonadNew, MonadMutate, MonadWrite, MonadRead)
