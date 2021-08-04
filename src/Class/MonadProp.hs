@@ -6,10 +6,13 @@ import "base" Control.Monad.IO.Class
 import "lens" Control.Lens
 import "monad-var" MonadVar.Classes (MonadNew, MonadMutate, MonadWrite, MonadRead)
 import qualified "monad-var" MonadVar.Classes as MV
+import "containers" Data.Set (Set)
+import qualified "containers" Data.Set as S
 
-import "this" Propagators hiding (new, write)
+import "this" Propagators hiding (new, write, parScoped)
 import qualified "this" Propagators as Prop
-import "this" PropagatorTypes
+import "this" PropagatorTypes hiding (parScoped)
+import qualified "this" PropagatorTypes as PropT
 
 type StdLat a = (Eq a, Show a, BoundedMeetSemiLattice a)
 
@@ -21,12 +24,6 @@ class (Monad m) => MonadProp m v where
   readState :: (StdLat a) => v a -> m a
 
   iff :: (StdLat a) => v a -> (a -> Instantiated c) -> (c -> m ()) -> m ()
-  iffm :: (StdLat a) => v a -> (a -> Maybe c) -> (c -> m ()) -> m ()
-  iffm ptr fkt = iff ptr (nothingToNoInst . fkt)
-  readUpdate :: (StdLat a) => v a -> (a -> m ()) -> m ()
-  readUpdate v = iff v ContinuousInstance
-  watch :: (StdLat a) => v a -> m () -> m ()
-  watch v m = readUpdate v (const m)
 
   write :: (StdLat a) => v a -> a -> m ()
 
@@ -36,6 +33,26 @@ class (Monad m) => MonadProp m v where
   parScoped :: m a -> m a
 
   watchFixpoint :: m () -> m ()
+
+
+
+  iffm :: (StdLat a) => v a -> (a -> Maybe c) -> (c -> m ()) -> m ()
+  iffm ptr fkt = iff ptr (nothingToNoInst . fkt)
+
+  iffb :: (StdLat a) => v a -> (a -> Bool) -> m () -> m ()
+  iffb ptr fkt m = iff ptr (falseToNoInst . fkt) (const m)
+
+  readUpdate :: (StdLat a) => v a -> (a -> m ()) -> m ()
+  readUpdate v = iff v ContinuousInstance
+
+  watch :: (StdLat a) => v a -> m () -> m ()
+  watch v m = readUpdate v (const m)
+
+  promote :: (StdLat a) => v a -> m ()
+  promote p = readUpdate p (\v -> parScoped @_ @v $ write p v)
+
+  dirEq :: (StdLat a) => v a -> v a -> m ()
+  dirEq p1 p2 = readUpdate p1 (\v -> write p2 v)
 
 type PtrCont m a = (a, PCollection m a)
 newtype CustPtr m v a = CustPtr (PtrType v (PtrCont m a))
@@ -54,12 +71,22 @@ instance Lattice [a] where
 instance BoundedMeetSemiLattice [a] where
   top = []
 
+newtype RevSet a = RS (Set a)
+  deriving (Show, Eq, Ord) via (Set a)
+
+instance (Ord a) => Lattice (RevSet a) where
+  (RS s1) /\ (RS s2) = RS (S.union s1 s2)
+  (RS s1) \/ (RS s2) = RS (S.intersection s1 s2)
+
+instance (Ord a) => BoundedMeetSemiLattice (RevSet a) where
+  top = RS S.empty
+
 instance (forall k. Eq (v k), MonadVar m v, PropUtil m, Monad m) => MonadProp m (CustPtr m v) where
   new = Prop.new >>= return . CustPtr
   readState (CustPtr p) = readLens value p
   iff (CustPtr p) = addPropagator p
   write (CustPtr p) = writeLens value p
   merge (CustPtr p1) (CustPtr p2) = mergePtrs p1 p2
-  scoped = PropagatorTypes.scoped
-  parScoped = PropagatorTypes.parScoped
+  scoped = PropT.scoped
+  parScoped = PropT.parScoped
   watchFixpoint = addFixpoint

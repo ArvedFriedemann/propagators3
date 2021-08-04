@@ -68,3 +68,7 @@ nothingToNoInst Nothing = NoInstance
 nothingToFailed :: Maybe a -> Instantiated a
 nothingToFailed (Just c) = Instance c
 nothingToFailed Nothing = Failed
+
+falseToNoInst :: Bool -> Instantiated ()
+falseToNoInst true = Instance ()
+falseToNoInst false = NoInstance
