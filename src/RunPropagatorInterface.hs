@@ -15,7 +15,7 @@ import qualified "containers" Data.Set as S
 testDisj :: forall v. (v ~ UP) => IO ()
 testDisj = runPropM @v $ do
   v1 <- new' []
-  disjunctForkPromotePred' v1 (\c -> c /= ["a"]) [
+  disjunctForkPromotePred' v1 (\c -> c /= ["a"] && c /= []) [
       traceM "scope0" >> readUpdate v1 (lift . putStrLn . (++" in scope0") . show) >>
         write v1 ["a"] >> traceM "writing in scope0",
       traceM "scope1" >> readUpdate v1 (lift . putStrLn . (++" in scope1") . show) >>
@@ -27,7 +27,7 @@ testDisj' :: forall m v. (MonadIO m, MonadProp m v) => m ()
 testDisj' = do
   v1 <- new' @_ @v []
   outruled <- new @_ @v
-  write outruled $ RS $ S.singleton 2 --this just causes the outruled list to have one element. Everything should be promoted now...
+  --write outruled $ RS $ S.singleton 2 --this just causes the outruled list to have one element. Everything should be promoted now...
   scoped @_ @v $ do
     let i = 0
     write v1 ["b"]
