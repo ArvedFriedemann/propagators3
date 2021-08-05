@@ -15,16 +15,6 @@ import qualified "containers" Data.Set as S
 testDisj :: forall v. (v ~ UP) => IO ()
 testDisj = runPropM @v $ do
   v1 <- new' []
-  {-}
-  scoped $ do
-    write v1 ["a"]
-    readUpdate v1 (lift . putStrLn . (++" in scope0") . show)
-    iffb v1 (\c -> c == ["a"]) $ promote v1
-  scoped $ do
-    write v1 ["b"]
-    readUpdate v1 (lift . putStrLn . (++" in scope1") . show)
-  readUpdate v1 (lift . putStrLn . (++" in orig") . show)
-  -}
   disjunctForkPromotePred' v1 (\c -> c /= ["a"]) [
       traceM "scope0" >> readUpdate v1 (lift . putStrLn . (++" in scope0") . show) >>
         write v1 ["a"] >> traceM "writing in scope0",
@@ -35,39 +25,31 @@ testDisj = runPropM @v $ do
 
 testDisj' :: forall m v. (MonadIO m, MonadProp m v) => m ()
 testDisj' = do
-  v1 <- new' @_ @v ["a"]
-  write v1 ["b"]
-  --outruled <- new @_ @v
-  --TODO: this should have caused both branches to be promoted, however they were not.
-  --write outruled $ RS $ S.singleton 2 --this just causes the outruled list to have one element. Everything should be promoted now...
+  v1 <- new' @_ @v []
+  outruled <- new @_ @v
+  write outruled $ RS $ S.singleton 2 --this just causes the outruled list to have one element. Everything should be promoted now...
   scoped @_ @v $ do
     let i = 0
-    --parScoped @_ @v $ write v1 ["b"]
-    {-}
+    write v1 ["b"]
     readUpdate outruled (liftIO . putStrLn . (++" outruled in scope0") . show)
     readUpdate v1 (liftIO . putStrLn . (++" in scope0") . show)
-    iffb v1 (\c -> c /= ["a"]) $ parScoped @_ @v $ write outruled (RS $ S.singleton i)
+    iffb v1 (\c -> c /= ["a"] && c /= []) $ parScoped @_ @v $ write outruled (RS $ S.singleton i)
     iffb outruled (\(RS s) -> (S.size s == 1) && (not $ S.member i s)) $
-      (traceM $ "chose "++show i) >> promote v1
-      -}
-    --promote v1
+      (liftIO . putStrLn  $ "chose "++show i) >> promote v1
     return ()
   scoped @_ @v $ do
     let i = 1
-    --parScoped @_ @v $ write v1 ["c"]
-    {-}
+    write v1 ["a"]
     readUpdate outruled (liftIO . putStrLn . (++" outruled in scope1") . show)
     readUpdate v1 (liftIO . putStrLn . (++" in scope1") . show)
-    iffb v1 (\c -> c /= ["a"]) $ parScoped @_ @v $ write outruled (RS $ S.singleton i)
+    iffb v1 (\c -> c /= ["a"] && c /= []) $ parScoped @_ @v $ write outruled (RS $ S.singleton i)
     iffb outruled (\(RS s) -> (S.size s == 1) && (not $ S.member i s)) $
-      (traceM $ "chose "++show i) >> promote v1
-      -}
-    --promote v1
+      (liftIO . putStrLn  $ "chose "++show i) >> promote v1
     return ()
   --TODO: for some weird reason, the second promote overrides the first one!
   --TODO: outrule value is not propagated up!
   --TODO: outrule value seems to be overridden...
-  --readUpdate outruled (liftIO . putStrLn . (++" outruled in orig") . show)
+  readUpdate outruled (liftIO . putStrLn . (++" outruled in orig") . show)
   readUpdate v1 (liftIO . putStrLn . (++" in orig") . show)
 
 testRun :: forall v. (v ~ UP) => IO ()
