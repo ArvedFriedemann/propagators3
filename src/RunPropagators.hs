@@ -89,6 +89,19 @@ testContInstScope = runPropM @v $ do
     addPropagator v1' ContinuousInstance (lift . putStrLn . ("v1: "++) . show)
   forM_ [0..10] $ const $ write v1 ["a"]
 
+testTwoScopes :: forall v. (v ~ UP) => IO ()
+testTwoScopes = runPropM @v $ do
+  v1 <- newLens' @v ["a"]
+  scoped $ do
+    let val = ["b"]
+    write v1 val
+    addPropagator v1 (\v -> if length v == 2 then Instance v else NoInstance) $ \c -> parScoped $ write v1 val
+  scoped $ do
+    let val = ["c"]
+    write v1 val
+    addPropagator v1 (\v -> if length v == 3 then Instance v else NoInstance) $ \c -> parScoped $ write v1 val
+  addPropagator v1 ContinuousInstance (lift . putStrLn . ("v1: "++) . show)
+
 testFP :: forall v. (v ~ UP) => IO ()
 testFP = runPropM @v $ do
   v1 <- newLens' @v ["a"]
