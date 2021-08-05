@@ -43,6 +43,7 @@ testDisj' = do
     iff outruled (\(RS s) -> if S.null s then trace "NoInstanceCase" NoInstance else trace "Instance Case" Instance ()) $
       const $ (getScope >>= \s -> liftIO $ putStrLn $ "currScopeExec: "++show s) >> promote v1
       --TODO: scope of execution wrong!
+      --TODO: Found out that when pushing values upwards, the notify is still in the base scope...
     --promote v1
     --(liftIO $ threadDelay 100)
     --(parScoped @_ @v $ readState outruled) >>= (\v -> write outruled v)
