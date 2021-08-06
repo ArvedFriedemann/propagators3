@@ -79,19 +79,19 @@ readVarMapScope :: forall b a m v. (
   Std m b a) => ScopePath -> Var v b -> m (PtrType v b)
 readVarMapScope sp mp = do
   (nptr,eqs) <- readVarMapScope' sp mp
-  forM eqs (uncurry (dirEqProp' @_ @a))
+  forM eqs (\(p1,sp,p2) -> (dirEqProp' @_ @a p1 sp p2))
   return nptr
 
 --returns (resulting ptr, paths that need upward propagation)
 ---WARNING: assuming that the directional equalities returned are eventually placed!
-readVarMapScope' :: (PropUtil m, MonadVar m v, HasTop a) => ScopePath -> Var v a -> m (PtrType v a, [(PtrType v a, PtrType v a)])
+readVarMapScope' :: (PropUtil m, MonadVar m v, HasTop a) => ScopePath -> Var v a -> m (PtrType v a, [(PtrType v a, ScopePath, PtrType v a)])
 readVarMapScope' currScp pm = do
   mp <- MV.read pm
   case mp !? head currScp of
     Just (s_ptr . fst -> v) -> return (v,[])
     Nothing -> do
       nv <- P <$> MV.new (Left top, (currScp,pm))
-      MV.mutate pm (\mp ->
+      MV.mutate pm $ \mp ->
         let hasPtr = IntMap.member (head currScp) mp
         in if hasPtr
         then (mp, (s_ptr $ fst $ mp ! (head currScp), []))
@@ -111,13 +111,13 @@ readVarMapScope' currScp pm = do
                           (IntMap.insert (head currScp) (ScopedPtr nv currScp, currScpChildren)
                             (IntMap.adjust (\(v,clds) -> (v,(ScopedPtr nv currScp) : nonchildren)) hpc mp),
                           --giving the list of equalities
-                          (s_ptr hpcPtr,nv) : (((nv,) . s_ptr) <$> currScpChildren))
+                          --WARNING: unverified whether currScp is correct!
+                          (s_ptr hpcPtr, currScp, nv) : ( (\k -> (nv, s_scp k, s_ptr k)) <$> currScpChildren))
             Nothing -> let
                           children = fst <$> flip filter (IntMap.elems mp) (\(sp,_) -> currScp `isParentOf` (s_scp sp))
                        in (IntMap.insert (head currScp) (ScopedPtr nv currScp, children) mp,
-                          ((nv,) . s_ptr) <$> children)
+                          (\k -> (nv, s_scp k, s_ptr k)) <$> children)
              in (mp',(nv,nextEqualities))
-        )
 
 
 getCurrScpPtr :: forall b a m v. (MonadVar m v, PropUtil m, Std m b a) => PtrType v b -> m (PtrType v b)
@@ -331,7 +331,7 @@ dirEqProp' :: forall b a m v.
     MonadFork m,
     PropUtil m,
     Std m b a,
-    Lattice a) => PtrType v b -> PtrType v b -> m ()
-dirEqProp' p1 p2 = addPropagator' @b @a p1 ContinuousInstance (\v -> write' p2 v)
+    Lattice a) => PtrType v b -> ScopePath ->  PtrType v b -> m ()
+dirEqProp' p1 sp p2 = addPropagator' @b @a p1 ContinuousInstance (\v -> inScope sp $ write' p2 v)
 
 --

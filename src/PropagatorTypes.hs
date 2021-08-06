@@ -44,11 +44,14 @@ instance (Lat.BoundedMeetSemiLattice a) => HasTop a where
 instance (Lat.BoundedJoinSemiLattice a) => HasBot a where
   bot = Lat.bottom
 
-type ScopePath = [Int]
+type Scope = Int
+type ScopePath = [Scope]
 
 class (MonadFork m) => PropUtil m where
-  getScope :: m Int
+  getScope :: m Scope
   getScopePath :: m ScopePath
+  inScope :: ScopePath -> m a -> m a
+  inScope' :: Scope -> m a -> m a
   scoped :: m a -> m a
   parScoped :: m a -> m a
   incrementJobs :: m ()
@@ -87,7 +90,7 @@ falseToNoInst False = NoInstance
 
 
 data PropState m v =
-  PS { scopes :: [Int], fixpointSem :: v (Int, [ReaderT (PropState m v) m ()])}
+  PS { scopes :: ScopePath, fixpointSem :: v (Int, [ReaderT (PropState m v) m ()])}
 
 initPS :: forall v m . (MonadNew m v) => m (PropState m v)
 initPS = do
@@ -112,6 +115,8 @@ instance (MonadIO m, MonadFork m, MonadVar m v) => PropUtil (ReaderT (PropState 
       (_ : xs) -> do
         local (\s -> s{scopes = xs}) m
       _ -> error "calling parScoped on Parent!"
+  inScope scp = local (\s -> s{scopes = scp})
+  inScope' cp = local (\s -> s{scopes = cp : scopes s})
   incrementJobs = asks fixpointSem >>= \s -> lift $ MV.mutate_ s (\(i,l) -> (i + 1, l))
   decrementJobs = asks fixpointSem >>= (\s -> lift $ MV.mutate s (\(i,l) ->
     case i of
