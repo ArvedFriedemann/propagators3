@@ -14,22 +14,22 @@ class Promoter m v a where
 disjunctForkPromote :: forall a v m.
   (MonadProp m v, StdLat a, HasDecBot a, Promoter m v a) =>
   v a -> [m ()] -> m ()
-disjunctForkPromote p lst = disjunctFork p (zip (repeat $ promoteAction p) lst)
+disjunctForkPromote p lst = disjunctFork p (zip lst (repeat $ promoteAction p))
 
 disjunctForkPromote' :: forall a v m.
   (MonadProp m v, StdLat a, HasDecBot a) =>
   v a -> [m ()] -> m ()
-disjunctForkPromote' p lst = disjunctFork p (zip (repeat $ promote p) lst)
+disjunctForkPromote' p lst = disjunctFork p (zip lst (repeat $ promote p))
 
 disjunctForkPromotePred :: forall a v m.
   (MonadProp m v, StdLat a, HasDecBot a, Promoter m v a) =>
   v a -> (a -> Bool) -> [m ()] -> m ()
-disjunctForkPromotePred p pred lst = disjunctFork' p pred (zip (repeat $ promoteAction p) lst)
+disjunctForkPromotePred p pred lst = disjunctFork' p pred (zip lst (repeat $ promoteAction p))
 
 disjunctForkPromotePred' :: forall a v m.
   (MonadProp m v, StdLat a) =>
   v a -> (a -> Bool) -> [m ()] -> m ()
-disjunctForkPromotePred' p pred lst = disjunctFork' p pred (zip (repeat $ promote p) lst)
+disjunctForkPromotePred' p pred lst = disjunctFork' p pred (zip lst (repeat $ promote p))
 
 disjunctFork :: forall a v m. (MonadProp m v, StdLat a, HasDecBot a) =>
   v a -> [(m (), m ())] -> m ()
@@ -46,7 +46,7 @@ disjunctFork' obvar outrulecrit branches = do
   forM_ indexed $ \(i, (b,promote)) -> do
     scoped @_ @v $ do
       --traceM $ "exec scope "++show i
-      b
+      b >>= \b' -> traceM $ "exec scope "++show i++show b'
       readUpdate obvar (traceM . (("obvar in "++show i++": ") ++) . show)
       iffb obvar outrulecrit $ traceM "hit outrule crit" >> parScoped @_ @v $ write outruled (RS $ S.singleton i)
       iffb outruled (\(RS s) -> (S.size s == (len - 1)) && (not $ S.member i s)) $

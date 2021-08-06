@@ -15,14 +15,15 @@ import qualified "containers" Data.Set as S
 
 testDisj :: forall v. (v ~ UP) => IO ()
 testDisj = runPropM @v $ do
-  v1 <- new' []
-  disjunctForkPromotePred' v1 (\c -> c /= ["a"] && c /= []) [
-      traceM "scope0" >> readUpdate v1 (lift . putStrLn . (++" in scope0") . show) >>
-        write v1 ["a"] >> traceM "writing in scope0",
-      traceM "scope1" >> readUpdate v1 (lift . putStrLn . (++" in scope1") . show) >>
-        write v1 ["b"] >> traceM "writing in scope1"
+  v1 <- new' $ RS $ S.empty
+  disjunctForkPromotePred' v1 (\c -> c /= (RS $ S.singleton "a") && c /= RS S.empty) [
+      (write v1 $ RS $ S.singleton "a"),
+      (write v1 $ RS $ S.singleton "b")
     ]
   readUpdate v1 (lift . putStrLn . (++" in orig") . show)
+  (liftIO $ threadDelay 1000)
+  v1val <- readState v1
+  liftIO $ putStrLn $ "delayed v1 in orig: "++show v1val
 
 testDisj' :: forall m v. (MonadIO m, MonadProp m v, PropUtil m) => m ()
 testDisj' = do
