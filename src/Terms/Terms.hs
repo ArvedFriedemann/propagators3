@@ -14,20 +14,20 @@ import qualified "lattices" Algebra.Lattice as Lat
 data TermConst = CUST String | TBOT
   deriving (Show, Eq, Ord)
 
-data TermSet v a = TS {
+data TermSet v = TS {
   constants :: Set TermConst,
-  variables :: Set (TSP v a),
-  applications :: Set (TSP v a, TSP v a)
+  variables :: Set (TSP v),
+  applications :: Set (TSP v, TSP v)
 }
-deriving instance (Show a, StdPtr v) => Show (TermSet v a)
-deriving instance (Eq a, StdPtr v) => Eq (TermSet v a)
-deriving instance (Ord a, StdPtr v) => Ord (TermSet v a)
+deriving instance (StdPtr v) => Show (TermSet v)
+deriving instance (StdPtr v) => Eq (TermSet v)
+deriving instance (StdPtr v) => Ord (TermSet v)
 
-type TSP v a = v (TermSet v a)
+type TSP v = v (TermSet v)
 
 --WARNING, TODO: PropBot for terms!
 
-instance (StdPtr v) => Lattice (TermSet v a) where
+instance (StdPtr v) => Lattice (TermSet v) where
  (TS c1 v1 a1) /\ (TS c2 v2 a2) = if S.size c > 1
                                   then TS (S.singleton TBOT) v a
                                   else if S.size c > 0 && S.size a > 0
@@ -36,37 +36,40 @@ instance (StdPtr v) => Lattice (TermSet v a) where
   where (c, v, a) = (S.union c1 c2, S.union v1 v2, S.union a1 a2)
  _ \/ _ = undefined
 
-instance (StdPtr v) => BoundedMeetSemiLattice (TermSet v a) where
+instance (StdPtr v) => BoundedMeetSemiLattice (TermSet v) where
   top = emptyTS
-instance (StdPtr v) => BoundedJoinSemiLattice (TermSet v a) where
+instance (StdPtr v) => BoundedJoinSemiLattice (TermSet v) where
   bottom = cset TBOT
 
-instance HasDecTop (TermSet v a) where
+instance HasDecTop (TermSet v) where
   isTop (TS a b c) = and [S.null a, S.null b, S.null c]
 
-instance HasDecBot (TermSet v a) where
+instance HasDecBot (TermSet v) where
   isBot ts = S.member TBOT $ constants ts
 
-emptyTS :: TermSet v a
+emptyTS :: TermSet v
 emptyTS = TS S.empty S.empty S.empty
 
-aplset :: (TSP v a, TSP v a) -> TermSet v a
+aplset :: (TSP v, TSP v) -> TermSet v
 aplset t = emptyTS{applications = S.singleton t}
 
-varset :: TSP v a -> TermSet v a
+varset :: TSP v -> TermSet v
 varset t = emptyTS{variables = S.singleton t}
 
-cset :: TermConst -> TermSet v a
+cset :: TermConst -> TermSet v
 cset t = emptyTS{constants = S.singleton t}
 
-newTSP :: (MonadProp m v, StdPtr v, StdLat a) => m (TSP v a)
+newTSP :: (MonadProp m v, StdPtr v) => m (TSP v)
 newTSP = new <<= termListener
 
-eqAll :: (MonadProp m v, StdPtr v, StdLat a) => Set (TSP v a) -> m ()
+newTSP' :: (MonadProp m v, StdPtr v) => TermSet v -> m (TSP v)
+newTSP' ts = new' ts <<= termListener
+
+eqAll :: (MonadProp m v, StdPtr v) => Set (TSP v) -> m ()
 eqAll (S.toList -> []) = return ()
 eqAll (S.toList -> (x : xs)) = forM_ xs (merge x)
 
-termListenerSlow :: (MonadProp m v, StdPtr v, StdLat a) => TSP v a -> m ()
+termListenerSlow :: (MonadProp m v, StdPtr v) => TSP v -> m ()
 termListenerSlow ptr = readUpdate ptr $ \TS {..} -> do
   eqAll variables
   eqAll (S.map fst applications)
@@ -89,7 +92,7 @@ eqStream' ptr ptrSet alreadyMerged = iff ptr
     eqStream' ptr ptrSet (S.union alreadyMerged newvars)
 
 
-termListener :: (MonadProp m v, StdPtr v, StdLat a) => TSP v a -> m ()
+termListener :: (MonadProp m v, StdPtr v) => TSP v -> m ()
 termListener ptr = do
   eqStream ptr variables
   eqStream ptr (S.map fst . applications)
@@ -101,31 +104,31 @@ termListener ptr = do
 -- Helper functions
 ---------------------------------------------------
 
-map_var_rep :: (MonadProp m v, StdPtr v, StdLat a) => TSP v a -> (TSP v a -> m ()) -> m ()
+map_var_rep :: (MonadProp m v, StdPtr v) => TSP v -> (TSP v -> m ()) -> m ()
 map_var_rep ptr f = do
   iffm ptr (lookupMin . variables) f
   iffm ptr (lookupMin . applications) (\ (p1,p2) -> map_var_rep p1 f >> map_var_rep p2 f)
 --
-split_const_appl_rep :: (MonadProp m v, StdPtr v, StdLat a) =>
-  TSP v a -> (TermConst -> m ()) -> ((TSP v a, TSP v a) -> m ()) -> m ()
+split_const_appl_rep :: (MonadProp m v, StdPtr v) =>
+  TSP v -> (TermConst -> m ()) -> ((TSP v, TSP v) -> m ()) -> m ()
 split_const_appl_rep ptr constcase aplcase = do
   iffm ptr (lookupMin . constants) constcase
   iffm ptr (lookupMin . applications) aplcase
 
-foldnew_const_appl_rep :: (MonadProp m v, StdPtr v, StdLat a) =>
-  TSP v a ->
-  (TSP v a -> TermConst -> m ()) ->
-  (TSP v a -> (TSP v a, TSP v a) -> m ()) ->
-  m (TSP v a)
+foldnew_const_appl_rep :: (MonadProp m v, StdPtr v) =>
+  TSP v ->
+  (TSP v -> TermConst -> m ()) ->
+  (TSP v -> (TSP v, TSP v) -> m ()) ->
+  m (TSP v)
 foldnew_const_appl_rep ptr constcase aplcase = do
   nptr <- newTSP
   foldeq_const_appl_rep ptr nptr constcase aplcase
   return nptr
 
-foldeq_const_appl_rep :: (MonadProp m v, StdPtr v, StdLat a) =>
-  TSP v a -> TSP v a ->
-  (TSP v a -> TermConst -> m ()) ->
-  (TSP v a -> (TSP v a, TSP v a) -> m ()) ->
+foldeq_const_appl_rep :: (MonadProp m v, StdPtr v) =>
+  TSP v -> TSP v ->
+  (TSP v -> TermConst -> m ()) ->
+  (TSP v -> (TSP v, TSP v) -> m ()) ->
   m ()
 foldeq_const_appl_rep ptr eqptr constcase aplcase = split_const_appl_rep ptr
   (constcase eqptr)
@@ -140,8 +143,8 @@ foldeq_const_appl_rep ptr eqptr constcase aplcase = split_const_appl_rep ptr
 --refresh
 ----------------------------------------------------
 
-refresh :: (MonadProp m v, StdPtr v, StdLat a) =>
-  Set TermConst -> TSP v a -> m (TSP v a)
+refresh :: (MonadProp m v, StdPtr v) =>
+  Set TermConst -> TSP v -> m (TSP v)
 refresh s ptr = do
   mp <- M.fromList <$> (forM (S.toList s) (\c -> (c,) <$> new))
   foldnew_const_appl_rep ptr
