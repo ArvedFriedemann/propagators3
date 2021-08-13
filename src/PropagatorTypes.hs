@@ -32,10 +32,10 @@ class HasBot a where
   bot :: a
 
 
-class HasDecTop a where
+class HasTop a => HasDecTop a where
   isTop :: a -> Bool
 
-class HasDecBot a where
+class HasBot a => HasDecBot a where
   isBot :: a -> Bool
 
 instance (Lat.BoundedMeetSemiLattice a) => HasTop a where

@@ -16,10 +16,10 @@ import qualified "containers" Data.Set as S
 testDisj :: forall v. (v ~ UP) => IO ()
 testDisj = runPropM @v $ do
   v1 <- new' $ RS $ S.empty
-  disjunctForkPromotePred' v1 (\c -> c /= (RS $ S.singleton "a") && c /= RS S.empty) [
+  disjunctForkPromotePredFin v1 (\c -> c /= (RS $ S.singleton "a") && c /= RS S.empty) [
       (write v1 $ RS $ S.singleton "a"),
       (write v1 $ RS $ S.singleton "b")
-    ]
+    ] (write v1 $ RS $ S.singleton "BOT!")
   readUpdate v1 (lift . putStrLn . (++" in orig") . show)
   (liftIO $ threadDelay 1000)
   v1val <- readState v1
