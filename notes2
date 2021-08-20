@@ -1,0 +1,20 @@
+given threshold (t : a -> Instantiated c) for variable (var : v a), what is the reason that var passed t?
+Reason: DNF of values that caused the write. Set of conjunctions, each conjunction forms a propagator that can determine the variable placement beforehand.
+
+(a, ta) -> (write b tbp) >> (write d tdp) >> ...
+(a, ta) -> (b, tb) -> (write c 1) <~~ c is 1 bcf. (a, ta) and (b, tb)
+(d, td) -> (e, te) -> (write c 1) <~~ c is 1 bcf. (a, ta) and (b, tb) and (d, td) and (e, te)
+                                  <~~ c is 1 bcf. (a, ta1) and (a, ta2) and (a, ta3) and (a, ta4)
+                                  <~~ c is 1 bcf. (a, \x -> ta1 x || ta2 x || ...)
+(c, hasVal 1) -> (write c 2) <~~ c is 2 bcf. (c, hasVal 1)
+--directly update the reasons?
+
+(c, hasVal 2) -> conflict
+
+--propagate back reason backwards until choice variables (without reason) were found. That is the learned clause. Warning: might not exist for circular dependencies.
+
+--use iff to get a stack of reasons that we operate it. Every write writes the current reason into the variable. When variable has value it should not have, trace back its reasons until there are only variables without reasons left. Add those as a clause. When moving the clause down to the orig, remove all variables that are not also present in the orig (its a bit of a heuristic, but correct because the variables currently in the orig are the only ones that could have caused the propagation).
+
+--TODO: general problem: variables in scopes can be recreated if a propagator is pushed upwards that creates new variables...
+
+--TODO: Make a proper formal concept out of this
