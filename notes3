@@ -1,0 +1,37 @@
+m = do
+  v1 <- new
+  v2 <- new
+
+m' = do
+  v2 <- getVar 2
+
+m >> m' -- gives v2
+m' >> m -- errors
+
+v <- goal
+scoped m1 <-- failed
+--learn: assignment that m1 makes on v causes conflict. Learned clause: Assignment on v AND placing m1 causes conflict.
+scoped m2 <-- taken
+m2
+if m1 is run, then...
+
+
+(Cons * (Cons * (Cons 3 *))) -> m1 fails
+
+K3 -> conflict
+P 3 -> K 3
+Q 3 -> K 3
+
+
+concat [] X X
+concat XS Y ZS -> concat (X : XS) Y (X : ZS)
+v = concat 1 2 3 -> m1 conflict
+learned clause: v = concat * * *
+should be: goal = concat * * *
+concat * * *
+
+--meet the reads
+
+
+Summary:
+Identify the goal. When branch fails, track which parts of the goal caused the conflict. Learn the goal term (not! the concrete goal, just its structure) by, lattice speaking, meeting all the reads done on the goal for the conflict to occur. Put a propagator that, when this goal structure is active, prevents the previously failed branch from being unfolded. 
