@@ -33,5 +33,27 @@ concat * * *
 --meet the reads
 
 
-Summary:
-Identify the goal. When branch fails, track which parts of the goal caused the conflict. Learn the goal term (not! the concrete goal, just its structure) by, lattice speaking, meeting all the reads done on the goal for the conflict to occur. Put a propagator that, when this goal structure is active, prevents the previously failed branch from being unfolded. 
+Summary: (building on top of disjunction operators)
+- [x] Identify the goal.
+- [ ] When branch fails, track which parts of the goal caused the conflict.
+- [ ] Learn the goal term (not! the concrete goal, just its structure) by, lattice speaking, meeting all the reads done on the goal for the conflict to occur.
+- [ ] Put a propagator that, when this goal structure is active, prevents the previously failed branch from being unfolded.
+
+Writing reasons:
+Every variable has reasons attached. Reason is list of variables with threshold functions for iff-reads, together with the value that was written.
+Add to state: a reason (List of iff-reads)
+Add to variable writes: a reason with value written
+conflict tracing:
+  question: why value v passed threshold function tf
+  algorithm: get all subsets of writes that together pass tf.
+              For each subset: append the reasons.
+              For each reason: Ask why the variable in the reason passed the threshold function from the reason.
+              problems: cycle detection
+                        further termination criterion (usually done with heuristics. Maybe stopping at the variables in the orig? so...fringe is pure orig. Other possibility: Search for reason until in goal term)
+After conflict tracing: recreate the variables with threshold functions to be a term instead of concrete variables. Problem: Threshold functions would need to return which part of the lattice they actually read. (Can be aided by useful combinators, e.g. head which uses the left part of a Cons.)
+
+Next Step:
+  [ ] Adding reasons to state
+  [ ] rewrite iff operator to write reasons to state
+  [ ] have reasons stored in variables
+  [ ] rewrite write operator to write reasons into variables
