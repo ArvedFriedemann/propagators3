@@ -57,6 +57,7 @@ class (MonadFork m) => PropUtil m where
   incrementJobs :: m ()
   decrementJobs :: m ()
   addFixpoint :: m () -> m ()
+  addReason :: (Std m a b) => ReasonEntry v a b c -> m d -> m d
 
 data ContRec m a = forall b. ContRec {
   crpred :: a -> Instantiated b,
@@ -88,14 +89,17 @@ falseToNoInst False = NoInstance
 --Propagator execution
 --------------------------------------
 
+type ReasonEntry v a b c = (v a, b -> Instantiated c)
 
 data PropState m v =
-  PS { scopes :: ScopePath, fixpointSem :: v (Int, [ReaderT (PropState m v) m ()])}
+  PS { scopes :: ScopePath,
+        reasons :: forall a b c. (Std m a b) => [ReasonEntry v a b c],
+        fixpointSem :: v (Int, [ReaderT (PropState m v) m ()])}
 
 initPS :: forall v m . (MonadNew m v) => m (PropState m v)
 initPS = do
   sem <- MV.new (0, [])
-  return $ PS {scopes = [0], fixpointSem = sem}
+  return $ PS {scopes = [0], reasons = [], fixpointSem = sem}
 
 runPropM :: forall v m a. (MonadVar m v, MonadIO m, MonadFork m) => ReaderT (PropState m v) m a -> m a
 runPropM m = initPS @v >>= \s -> flip runReaderT s (incrementJobs >> m >>= \r -> decrementJobs >> return r)

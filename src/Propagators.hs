@@ -252,7 +252,8 @@ addPropagator' :: forall b a m v c.
     PropUtil m,
     Std m b a) =>
   PtrType v b -> (a -> Instantiated c) -> (c -> m ()) -> m ()
-addPropagator' p pred cont = do
+addPropagator' p pred cont' = do
+  let cont = \c -> addReason (p,pred) $ cont' c
   join $ mutateDirect p $ \v ->  case pred (v ^. value) of
       Failed -> (v, return ())
       Instance x -> (v, cont x)
