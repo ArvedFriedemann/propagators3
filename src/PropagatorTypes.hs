@@ -11,6 +11,7 @@ import "hashable" Data.Hashable
 import "unique" Control.Concurrent.Unique
 import "monad-parallel" Control.Monad.Parallel (MonadFork, forkExec)
 import "this" CustomVars
+import "base" Data.Kind
 
 type Std m b a = (HasTop b, HasValue b a, Show b, Show a, HasProps m b a, Eq a, Lattice a)
 --type Std m b = (HasTop b, Show b, Eq a)
@@ -89,17 +90,45 @@ falseToNoInst False = NoInstance
 --Propagator execution
 --------------------------------------
 
+{-
+
+/home/arved/Documents/propagators3/src/PropagatorTypes.hs:162:30: error:
+    • Record update for insufficiently polymorphic field:
+        reasons :: HList xs
+    • In the expression: s {reasons = r :+: (reasons s)}
+      In the first argument of ‘local’, namely
+        ‘(\ s -> s {reasons = r :+: (reasons s)})’
+      In the expression: local (\ s -> s {reasons = r :+: (reasons s)})
+    |
+162 |   addReason r = local (\s -> s{reasons = r :+: (reasons s)})
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+-}
+
+data HList :: [*] -> * where
+  HNil :: HList '[]
+  (:+:) :: x -> HList xs -> HList (x ': xs)
+infixr 5 :+:
+
 type ReasonEntry v a b c = (v a, b -> Instantiated c)
 
-data PropState m v =
+type family IsReason (x :: *) :: Bool where
+  IsReason (ReasonEntry v a b c) = 'True
+  IsReason x = 'False
+
+type family AllReasons (xs :: [*]) (v :: * -> *) :: Constraint where
+  AllReasons '[] v = ()
+  AllReasons (x ': xs) v = ('True ~ IsReason x, AllReasons xs v)
+
+data PropState m v = forall xs. (AllReasons xs v) =>
   PS { scopes :: ScopePath,
-        reasons :: forall a b c. (Std m a b) => [ReasonEntry v a b c],
+        reasons :: HList xs,--[forall a b c. (Std m a b) => ReasonEntry v a b c],
         fixpointSem :: v (Int, [ReaderT (PropState m v) m ()])}
 
 initPS :: forall v m . (MonadNew m v) => m (PropState m v)
 initPS = do
   sem <- MV.new (0, [])
-  return $ PS {scopes = [0], reasons = [], fixpointSem = sem}
+  return $ PS {scopes = [0], reasons = HNil, fixpointSem = sem}
 
 runPropM :: forall v m a. (MonadVar m v, MonadIO m, MonadFork m) => ReaderT (PropState m v) m a -> m a
 runPropM m = initPS @v >>= \s -> flip runReaderT s (incrementJobs >> m >>= \r -> decrementJobs >> return r)
@@ -128,6 +157,9 @@ instance (MonadIO m, MonadFork m, MonadVar m v) => PropUtil (ReaderT (PropState 
       _ -> ((i-1,l),[]))) >>= sequence_ . (map $ forkExec . (>> decrementJobs))
   -- addFixpoint :: ReaderT (PropState m v) m () -> ReaderT (PropState m v) m ()
   addFixpoint m = ask >>= \s -> lift $ MV.mutate_ (fixpointSem s) (\(i,l) -> (i,  (local (const s) m) : l))
+  addReason r = local (\(PS s reas fpSem) -> PS {reasons = r :+: reas,
+                                scopes = s,
+                                fixpointSem = fpSem})
 
 class (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m v) => MonadVar m v | m -> v
 --instance (MonadMutate m v, MonadWrite m v, MonadRead m v, MonadNew m v) => MonadVar m v

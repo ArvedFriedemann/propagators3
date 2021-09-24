@@ -53,6 +53,9 @@ default-extensions:
 - ExistentialQuantification
 - StandaloneDeriving
 - RecordWildCards
+- DataKinds
+- TypeOperators
+- GADTs
 
 library:
   source-dirs: src
