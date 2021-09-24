@@ -34,6 +34,16 @@ instance BoundedMeetSemiLattice [a] where
   top = []
 -}
 
+instance Lattice [String] where
+  (/\) = (++)
+  (\/) = undefined
+
+instance BoundedMeetSemiLattice [String] where
+  top = []
+
+instance HasDecTop [String] where
+  isTop = null
+
 
 newLens' :: forall v a m . (BoundedMeetSemiLattice a, MonadVar m v, PropUtil m, Show a, Eq a) =>
   a -> m (PtrType v (PtrCont m a))

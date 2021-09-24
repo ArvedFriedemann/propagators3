@@ -53,7 +53,8 @@ conflict tracing:
 After conflict tracing: recreate the variables with threshold functions to be a term instead of concrete variables. Problem: Threshold functions would need to return which part of the lattice they actually read. (Can be aided by useful combinators, e.g. head which uses the left part of a Cons.)
 
 Next Step:
-  [ ] Adding reasons to state
-  [ ] rewrite iff operator to write reasons to state
+  [x] Adding reasons to state
+  [x] rewrite iff operator to write reasons to state
+  [x] check lattice instance for PtrConts in Propagators.hs
   [ ] have reasons stored in variables
   [ ] rewrite write operator to write reasons into variables

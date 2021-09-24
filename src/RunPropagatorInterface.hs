@@ -13,6 +13,7 @@ import "base" Control.Concurrent
 import "containers" Data.Set (Set)
 import qualified "containers" Data.Set as S
 
+
 testDisj :: forall v. (v ~ UP) => IO ()
 testDisj = runPropM @v $ do
   v1 <- new' $ RS $ S.empty
@@ -65,5 +66,5 @@ testDisj' = do
 testRun :: forall v. (v ~ UP) => IO ()
 testRun = runPropM @v (testDisj' @_ @(CustPtr (ReaderT (PropState IO v) IO) v))
 
-testPtr :: forall v m a. (StdLat a, MonadProp m v) => m ()
-testPtr = new @_ @v @[a] >> return ()
+--testPtr :: forall v m a. (StdLat a, MonadProp m v) => m ()
+--testPtr = new @_ @v @[a] >> return ()

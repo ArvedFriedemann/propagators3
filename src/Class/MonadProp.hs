@@ -70,6 +70,17 @@ instance (a~b) => HasValue (PtrCont m a) b where
 instance (a~b) => HasProps m (PtrCont m a) b where
   props = _2
 
+instance Lattice (PCollection m a) where
+  (/\) = (++)
+  (\/) = undefined
+
+instance BoundedMeetSemiLattice (PCollection m a) where
+  top = []
+
+instance HasDecTop (PCollection m a) where
+  isTop = null
+
+{-}
 instance Lattice [a] where
   (/\) = (++)
   (\/) = undefined
@@ -79,6 +90,8 @@ instance BoundedMeetSemiLattice [a] where
 
 instance HasDecTop [a] where
   isTop = null
+
+-}
 
 newtype RevSet a = RS (Set a)
   deriving (Show, Eq, Ord) via (Set a)

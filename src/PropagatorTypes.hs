@@ -90,20 +90,6 @@ falseToNoInst False = NoInstance
 --Propagator execution
 --------------------------------------
 
-{-
-
-/home/arved/Documents/propagators3/src/PropagatorTypes.hs:162:30: error:
-    • Record update for insufficiently polymorphic field:
-        reasons :: HList xs
-    • In the expression: s {reasons = r :+: (reasons s)}
-      In the first argument of ‘local’, namely
-        ‘(\ s -> s {reasons = r :+: (reasons s)})’
-      In the expression: local (\ s -> s {reasons = r :+: (reasons s)})
-    |
-162 |   addReason r = local (\s -> s{reasons = r :+: (reasons s)})
-    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
--}
 
 data HList :: [*] -> * where
   HNil :: HList '[]
