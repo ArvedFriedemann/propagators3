@@ -55,6 +55,6 @@ After conflict tracing: recreate the variables with threshold functions to be a 
 Next Step:
   [x] Adding reasons to state
   [x] rewrite iff operator to write reasons to state
-  [x] check lattice instance for PtrConts in Propagators.hs
+  [x] check lattice instance for PtrConts in Propagators.hs (Lattice instance is now individual for each list type. Merging should work fine as only pointer contents are merged, not the meta information of pointers.)
   [ ] have reasons stored in variables
   [ ] rewrite write operator to write reasons into variables
